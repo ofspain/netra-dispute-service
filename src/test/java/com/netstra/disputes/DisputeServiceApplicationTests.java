@@ -1,4 +1,4 @@
-package com.netstra.dispute_service;
+package com.netstra.disputes;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

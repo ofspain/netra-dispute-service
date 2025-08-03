@@ -1,4 +1,4 @@
-package com.netstra.dispute_service;
+package com.netstra.disputes;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
