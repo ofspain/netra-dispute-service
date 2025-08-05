@@ -13,7 +13,7 @@ import java.util.Set;
 
 @Service
 public class DisputeValidatorService {
-    //autowire all necessary rules repository
+    //todo: autowire all necessary rules repository
     public RulesEvaluationResult evaluateDisputeForProcessing(Dispute dispute){
         DisputeRuleAggregator aggregatedRule = null; //load a rule applicable to this dispute
 
@@ -25,7 +25,7 @@ public class DisputeValidatorService {
         Set<TransactionInstrument> instruments = aggregatedRule.getTransactionInstruments();
         TransactionType transactionType = aggregatedRule.getTransactionType();
 
-        //todo: validate this dispute can actually use this rule first
+        //todo: validate this dispute can actually use this rule first based on instrument and transType
         return null;
     }
 }
