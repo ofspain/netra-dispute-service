@@ -1,4 +1,4 @@
-package com.netstra.disputes.services.client;
+package com.netstra.disputes.services.client.util;
 
 import lombok.Data;
 import org.springframework.data.annotation.Id;
@@ -10,23 +10,7 @@ import java.time.Instant;
 
 @Data
 @RedisHash("mtls_context")
-class MtlsContextEntry implements Serializable {
-
-    //KNOWN
-    //@Value("${trust.store.password}")
-    //    private String trustStorePassword;
-    //    @Value("${trust.store.alias}")
-    //    private String trustStoreAlias;
-    //
-    //    @Value("${trust.store.type}")
-    //    private String trustStoreType;
-    //
-    //
-    //    @Value("${trust.key-filename}")
-    //    private String trustKeyFileName;
-    //
-    //    @Value("${key.store-filename}")
-    //    private String keyStoreFileName;
+public class MtlsContextEntry implements Serializable {
 
     @Id
     @Indexed

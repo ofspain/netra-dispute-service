@@ -3,16 +3,24 @@ package com.netstra.disputes;
 import com.netra.commons.enums.DomainType;
 import com.netra.commons.models.endpoint.*;
 import com.netstra.disputes.services.client.RestClientExecutor;
+import com.netstra.disputes.services.client.vault.VaultManager;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @SpringBootTest
 class DisputeServiceApplicationTests {
+
+	@Autowired
+	@Qualifier("awsVault")
+	private VaultManager vaultManager;
 
 	// === 1. GTB Payments (API Key + Static/Dynamic Headers) ===
 	@Test
@@ -40,7 +48,7 @@ class DisputeServiceApplicationTests {
 		// Endpoint detail
 		EndpointDetail paymentDetail = new EndpointDetail();
 		paymentDetail.setUrl("/v1/payments");
-		paymentDetail.setMethod(HTTPMethod.POST);
+		paymentDetail.setMethod(EndpointDetail.HTTPMethod.POST);
 		paymentDetail.setHeaders(List.of(
 				new StaticHeader("Authorization", "Bearer ${vault:vk-42}", true),
 				new StaticHeader("X-Fixed-Header", "abc123", false)
@@ -81,9 +89,22 @@ class DisputeServiceApplicationTests {
 				"note", "Payment for invoice #123"
 		);
 
+		List<DynamicHeader> dynamicHeaders = List.of(
+				new DynamicHeader("transactionID", true, "unique identifier of the transation"),
+				new DynamicHeader("branch", false, "where transaction occurs")
+		);
+		Map<DynamicHeader,String> dynamicHeaderMap = new HashMap<>();
+
+		for(DynamicHeader dynamicHeader : dynamicHeaders){
+			if(dynamicHeader.isRequired()){
+				String value = "dummyVal";
+				dynamicHeaderMap.put(dynamicHeader, value);
+			}
+		}
+
 		ParameterizedTypeReference<Map<String, Object>> responseType = new ParameterizedTypeReference<>() {};
-		Map<String, Object> response = executor.executeRequest(
-				client, config, false, pathParams, queryParams, headers, bodyContext, responseType
+		Map<String, Object> response = executor.executeUniqueTransactionRequest(
+				client, config, pathParams, queryParams, dynamicHeaderMap, bodyContext, responseType
 		);
 
 		System.out.println("Response (GTB Payment): " + response);
@@ -117,7 +138,7 @@ class DisputeServiceApplicationTests {
 		// Endpoint
 		EndpointDetail detail = new EndpointDetail();
 		detail.setUrl("/wallets/{walletId}/balance");
-		detail.setMethod(HTTPMethod.GET);
+		detail.setMethod(EndpointDetail.HTTPMethod.GET);
 		detail.setPathParamKeys(List.of("walletId"));
 		detail.setQueryParamKeys(List.of("currency"));
 		detail.setDynamicHeaders(List.of(
@@ -148,14 +169,23 @@ class DisputeServiceApplicationTests {
 		enc.setType(EncryptionConfig.EncryptionType.AES);
 		enc.setAlgorithm("AES/GCM/NoPadding");
 		enc.setEncryptionKey("vault:keys/aes-key");
-		enc.setAadHeaders(List.of("Transaction-Id", "Date"));
+		Map<String, String> headerMap = Map.of(
+				"Transaction-Id", null,          // dynamic
+				"Date", "2025-09-20T12:00:00Z"   // static
+		);
+
+		List<EncryptionConfig.AadHeader> aadHeaders = headerMap.entrySet().stream()
+				.map(entry -> new EncryptionConfig.AadHeader(entry.getKey(), entry.getValue(), false, entry.getValue() == null))
+				.toList();
+
+		enc.setAadHeaders(aadHeaders);
 		SecurityConfig security = new SecurityConfig();
 		security.setEncryption(enc);
 		config.setSecurity(security);
 
 		EndpointDetail rates = new EndpointDetail();
 		rates.setUrl("/api/rates");
-		rates.setMethod(HTTPMethod.GET);
+		rates.setMethod(EndpointDetail.HTTPMethod.GET);
 		rates.setQueryParamKeys(List.of("baseCurrency", "targetCurrencies"));
 		rates.setDynamicHeaders(List.of(new DynamicHeader("x-api-key", true, "API Key")));
 
@@ -196,7 +226,7 @@ class DisputeServiceApplicationTests {
 		// Security: API Key
 		ApiKeyAuth apiKeyAuth = new ApiKeyAuth();
 		apiKeyAuth.setHeaderName("X-API-KEY");
-		apiKeyAuth.setApiKeyVaultAlias("vault:keys/stockdata");
+		apiKeyAuth.setApiKey("vault:keys/stockdata");
 		SecurityConfig security = new SecurityConfig();
 		security.setAuthConfigs(List.of(apiKeyAuth));
 		config.setSecurity(security);
@@ -204,7 +234,7 @@ class DisputeServiceApplicationTests {
 		// Endpoint
 		EndpointDetail quotesDetail = new EndpointDetail();
 		quotesDetail.setUrl("/quotes");
-		quotesDetail.setMethod(HTTPMethod.GET);
+		quotesDetail.setMethod(EndpointDetail.HTTPMethod.GET);
 		quotesDetail.setQueryParamKeys(List.of("symbol"));
 		quotesDetail.setDynamicHeaders(List.of(
 				new DynamicHeader("X-API-KEY", true, "API key at runtime")
@@ -250,7 +280,7 @@ class DisputeServiceApplicationTests {
 		// Endpoint
 		EndpointDetail reportDetail = new EndpointDetail();
 		reportDetail.setUrl("/reports");
-		reportDetail.setMethod(HTTPMethod.GET);
+		reportDetail.setMethod(EndpointDetail.HTTPMethod.GET);
 		reportDetail.setQueryParamKeys(List.of("date", "type"));
 		config.setEndpoints(Map.of(
 				EndpointConfig.OperationType.UNIQUE_TRANSACTION_SEARCH, reportDetail
@@ -290,7 +320,7 @@ class DisputeServiceApplicationTests {
 		// Endpoint
 		EndpointDetail ordersDetail = new EndpointDetail();
 		ordersDetail.setUrl("/orders");
-		ordersDetail.setMethod(HTTPMethod.POST);
+		ordersDetail.setMethod(EndpointDetail.HTTPMethod.POST);
 		ordersDetail.setRequestBodyTemplate("""
             {
               "orderId": "${orderId}",

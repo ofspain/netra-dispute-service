@@ -1,5 +1,6 @@
 package com.netstra.disputes.services.client;
 
+import com.netstra.disputes.services.client.util.MtlsContextEntry;
 import org.springframework.stereotype.Service;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -13,6 +14,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import com.netra.commons.models.endpoint.MtlsAuth;
 
 @Service
 public class MtlsContextService {
@@ -29,8 +31,8 @@ public class MtlsContextService {
         this.secretManager = secretManager;
     }
 
-    public SSLContext getOrCreateContext(String domainCode, Map<String, String> props) {
-        // 1. Fast path: local memory
+    public SSLContext getOrCreateContext(String domainCode, MtlsAuth mtlsAuth) {
+        // 1. Fast path: in-memory cache
         if (localCache.containsKey(domainCode)) {
             return localCache.get(domainCode);
         }
@@ -55,16 +57,17 @@ public class MtlsContextService {
             }
         }
 
-        // 3. Last resort: load fresh from Vault & persist metadata to Redis
-        String certPath = secretManager.resolveSecret(props.get("certPath"));
-        String certPassword = secretManager.resolveSecret(props.get("certPassword"));
+        // 3. Last resort: resolve from Vault using MtlsAuth config
+        String certPath = secretManager.resolveSecret(mtlsAuth.getCertVaultAlias());
+        String certPassword = secretManager.resolveSecret(mtlsAuth.getKeyPasswordVaultAlias());
 
         SSLContext ctx = buildSslContext(certPath, certPassword);
 
+        // Save metadata for caching
         MtlsContextEntry newEntry = new MtlsContextEntry();
         newEntry.setId(domainCode);
-        newEntry.setCertPathAlias(props.get("certPath"));
-        newEntry.setCertPasswordAlias(props.get("certPassword"));
+        newEntry.setCertPathAlias(mtlsAuth.getCertVaultAlias());
+        newEntry.setCertPasswordAlias(mtlsAuth.getKeyPasswordVaultAlias());
         newEntry.setLoadedAt(Instant.now());
         newEntry.setExpiresAt(Instant.now().plus(Duration.ofHours(12))); // configurable TTL
 
@@ -74,6 +77,7 @@ public class MtlsContextService {
 
         return ctx;
     }
+
 
     private SSLContext buildSslContext(String certPath, String certPassword) {
         try {

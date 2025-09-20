@@ -2,15 +2,14 @@ package com.netstra.disputes.services.client;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.netra.commons.enums.CallOperation;
+import com.netra.commons.models.endpoint.DynamicHeader;
 import com.netra.commons.models.endpoint.EndpointConfig;
+import com.netra.commons.trace.CallOperation;
 import com.netra.commons.trace.LogObject;
 import com.netra.commons.trace.LogObjectRequestEvent;
 import com.netra.commons.trace.TraceIdFilter;
-import com.netra.commons.util.BasicUtil;
-import com.netstra.disputes.services.client.util.ResolvedRequest;
-import com.netstra.disputes.services.client.util.ParamsDTO;
-import com.netstra.disputes.services.client.util.Utility;
+import com.netstra.disputes.services.client.util.*;
+import com.netstra.disputes.services.client.vault.VaultManager;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.retry.Retry;
@@ -30,7 +29,6 @@ import org.springframework.util.StopWatch;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Duration;
 import java.util.Map;
@@ -39,6 +37,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
+
 
 @Component
 @Slf4j
@@ -65,6 +64,10 @@ public class RestClientExecutor {
     @Qualifier("timeLimiterScheduler")
     private final ScheduledExecutorService timeLimiterScheduler;
 
+    private final VaultManager vaultManager;
+    private final ExecutorUtil executor;
+
+
     @Autowired
     public RestClientExecutor(
             @Qualifier("restClient") RestClient plainRestClient,
@@ -75,7 +78,9 @@ public class RestClientExecutor {
             CircuitBreakerRegistry circuitBreakerRegistry,
             ExecutorService timeLimiterExecutor,
             TimeLimiter timeLimiter,
-            @Qualifier("timeLimiterScheduler") ScheduledExecutorService timeLimiterScheduler) {
+            @Qualifier("timeLimiterScheduler") ScheduledExecutorService timeLimiterScheduler,
+            @Qualifier("awsVault")VaultManager vaultManager,
+            ExecutorUtil executor) {
 
         this.plainRestClient = plainRestClient;
         this.oauthRestClient = oauthRestClient;
@@ -89,96 +94,137 @@ public class RestClientExecutor {
         this.timeLimiter = timeLimiter;
         this.timeLimiterScheduler = timeLimiterScheduler;
 
+        this.vaultManager = vaultManager;
+        this.executor = executor;
+
         log.info("RestClientExecutor initialized with resilience patterns enabled");
     }
 
 
-    /**
-     * Builds URI with improved efficiency and null safety
-     */
-    public String buildUri(String baseUrl, String path,
-                           @Nullable MultiValueMap<String, String> queryParams,
-                           Object... pathVariables) {
-
-        if (!BasicUtil.validString(baseUrl) || !BasicUtil.validString(path)) {
-            throw new IllegalArgumentException("BaseUrl and path cannot be null or empty");
-        }
-
-        // More efficient string concatenation
-        StringBuilder urlBuilder = new StringBuilder(baseUrl);
-        if (!baseUrl.endsWith("/") && !path.startsWith("/")) {
-            urlBuilder.append("/");
-        }
-
-        UriComponentsBuilder builder = UriComponentsBuilder
-                .fromUriString(urlBuilder.toString())
-                .path(path);
-
-        if (queryParams != null && !queryParams.isEmpty()) {
-            builder.queryParams(queryParams);
-        }
-
-        return builder.buildAndExpand(pathVariables).toUriString();
-    }
-
-    public <T> T executeRequest(
+    public <T> T executeUniqueTransactionRequest(
             RestClient client,
             EndpointConfig config,
-            boolean isMultiple,
             Map<String, String> pathParams,
             Map<String, String> queryParams,
-            Map<String, String> dynamicHeaderValues,
+            Map<DynamicHeader, String> dynamicHeaderValues,
             Map<String, String> requestBodyContext,
             ParameterizedTypeReference<T> responseType
     ) {
+        // 1️⃣ Prepare ParamsDTO
         ParamsDTO paramsDTO = new ParamsDTO(pathParams, queryParams, dynamicHeaderValues);
 
-        ResolvedRequest dto = Utility.prepareEndpointRequest(config, isMultiple, requestBodyContext, paramsDTO);
+        // 2️⃣ Prepare the resolved endpoint request
+        ResolvedRequest dto = Utility.prepareEndpointRequest(
+                config.getEndpoints().get(EndpointConfig.OperationType.UNIQUE_TRANSACTION_SEARCH),
+                config,
+                requestBodyContext,
+                paramsDTO,
+                vaultManager
+        );
 
-        HttpMethod method = dto.method();
-        String resolvedUrl = dto.resolvedUrl();
-        HttpEntity<?> entity = dto.entity();
-
-        HttpHeaders headers = entity.getHeaders();
-        Object body = entity.getBody();
-        boolean hasBody = null != body;
-
-        String curl = toCurl(method, resolvedUrl,entity);
+        // 3️⃣ Log the CURL equivalent (optional)
+        String curl = toCurl(dto.method(), dto.resolvedUrl(), dto.entity());
         log.info("CURL URL {}", curl);
 
-        RestClient.RequestBodySpec request = client
-                .method(method)
-                .uri(resolvedUrl)
-                .headers(httpHeaders -> httpHeaders.addAll(headers));
-
-        if (hasBody) {
-            return request
-                    .body(entity.getBody())
-                    .retrieve()
-                    .body(responseType);
-        } else {
-            return request
-                    .retrieve()
-                    .body(responseType);
-        }
+        // 4️⃣ Delegate execution to the common executor
+        // `audit=false` because unique transaction does not require audit/timing
+        return executor.executeRequest(
+                client,
+                dto,
+                responseType,
+                config.getDomainCode(),
+                false
+        );
     }
 
 
-    private HttpMethod convertMethod(EndpointConfig.HTTPMethod method) {
-        return method == EndpointConfig.HTTPMethod.POST ? HttpMethod.POST : HttpMethod.GET;
+    public <T> T executeMultipleTransactionRequest(
+            RestClient client,
+            EndpointConfig config,
+            Map<String, String> pathParams,
+            Map<String, String> queryParams,
+            Map<DynamicHeader, String> dynamicHeaderValues,
+            Map<String, String> requestBodyContext,
+            ParameterizedTypeReference<T> responseType
+    ) {
+        // 1️⃣ Prepare ParamsDTO
+        ParamsDTO paramsDTO = new ParamsDTO(pathParams, queryParams, dynamicHeaderValues);
+
+        // 2️⃣ Prepare the resolved endpoint request
+        ResolvedRequest dto = Utility.prepareEndpointRequest(
+                config.getEndpoints().get(EndpointConfig.OperationType.BULK_TRANSACTION_SEARCH),
+                config,
+                requestBodyContext,
+                paramsDTO,
+                vaultManager
+        );
+
+        // 3️⃣ Log the CURL equivalent (optional)
+        String curl = toCurl(dto.method(), dto.resolvedUrl(), dto.entity());
+        log.info("CURL URL {}", curl);
+
+        // 4️⃣ Delegate execution to the common executor
+        // `audit=false` because unique transaction does not require audit/timing
+        return executor.executeRequest(
+                client,
+                dto,
+                responseType,
+                config.getDomainCode(),
+                false
+        );
     }
+
 
     /**
      * Enhanced execute method with better error handling and performance
      */
-    public <T> T execute(RestClient client, HttpMethod method, String url, @Nullable Object body,
-                         @Nullable MultiValueMap<String, String> headers,
-                         ParameterizedTypeReference<T> responseType,
-                         CallOperation operation, String userName) {
+    public <T> T executeWithResilience(
+            RestClient client,
+            HttpMethod method,
+            String url,
+            @Nullable Object body,
+            @Nullable HttpHeaders headers,
+            ParameterizedTypeReference<T> responseType,
+            boolean audit,
+            String username,
+            CallOperation operation
+    ) {
+        // Build a ResolvedRequest-like object
+        ResolvedRequest dto = new ResolvedRequest(url, method, new HttpEntity<>(body, headers));
 
-        validateExecuteParameters(method, url, responseType, operation, userName);
+        // Wrap the call into a Supplier<T> for resilience
+        Supplier<T> syncSupplier = () -> executeRequest(client, dto, responseType, audit, operation, username);
 
-        // Create execution context for better tracing
+        Supplier<T> retryDecorated = Retry.decorateSupplier(retry, syncSupplier);
+        Supplier<T> circuitBreakerDecorated = CircuitBreaker.decorateSupplier(circuitBreaker, retryDecorated);
+
+        try {
+            return timeLimiter.executeCompletionStage(
+                    (ScheduledExecutorService) timeLimiterExecutor,
+                    () -> CompletableFuture.supplyAsync(circuitBreakerDecorated, timeLimiterExecutor)
+            ).toCompletableFuture().join();
+        } catch (CompletionException ce) {
+            Throwable cause = ce.getCause();
+            if (cause instanceof RestClientResponseException) throw (RestClientResponseException) cause;
+            throw new RestClientExecutionException("REST call failed for: " + url, cause);
+        }
+    }
+
+    private <T> T executeRequest(
+            RestClient client,
+            ResolvedRequest dto,
+            ParameterizedTypeReference<T> responseType,
+            boolean audit,
+            CallOperation operation,
+            String userName
+    ) {
+        HttpMethod method = dto.method();
+        String url = dto.resolvedUrl();
+        HttpEntity<?> entity = dto.entity();
+        HttpHeaders headers = entity.getHeaders();
+        Object body = entity.getBody();
+
+        // Build execution context with builder
         ExecutionContext context = ExecutionContext.builder()
                 .method(method)
                 .url(url)
@@ -187,40 +233,20 @@ public class RestClientExecutor {
                 .startTime(System.currentTimeMillis())
                 .build();
 
+        // Delegate actual HTTP call to makeCall
+        T response = makeCall(client, method, url, body, headers, responseType, context);
 
-        Supplier<CompletableFuture<T>> decoratedSupplier = () -> {
-            Supplier<T> syncSupplier = () -> makeCall(client, method, url, body, headers, responseType, context);
-
-            // Apply retry -> circuit breaker -> time limiter in sequence
-            Supplier<T> retryDecorated = Retry.decorateSupplier(retry, syncSupplier);
-            Supplier<T> circuitBreakerDecorated = CircuitBreaker.decorateSupplier(circuitBreaker, retryDecorated);
-
-            // Fix: Pass the ScheduledExecutorService as the first parameter
-            // Assuming timeLimiterExecutor is a ScheduledExecutorService, or you need to inject one
-            return timeLimiter.executeCompletionStage(
-                    (ScheduledExecutorService) timeLimiterExecutor, // Cast or use proper ScheduledExecutorService
-                    () -> CompletableFuture.supplyAsync(circuitBreakerDecorated, timeLimiterExecutor)
-            ).toCompletableFuture();
-        };
-
-        try {
-            T result = decoratedSupplier.get().join();
-            log.debug("REST call completed successfully for {}", url);
-            return result;
-
-        } catch (CompletionException ce) {
-            Throwable cause = ce.getCause();
-            log.error("REST call failed for {} after resilience controls: {}",
-                    url, cause != null ? cause.getMessage() : "Unknown error", ce);
-
-            if (cause instanceof RestClientResponseException) {
-                throw (RestClientResponseException) cause;
-            }
-
-            throw new RestClientExecutionException(
-                    "REST call failed with resilience controls for: " + url, cause);
+        // Optionally handle audit / metrics
+        if (audit) {
+            // TODO: implement audit logic here
+            // auditLogger.logSuccess(domainCode, method, url, headers, body, response, context.elapsed());
         }
+
+        return response;
     }
+
+
+
 
     /**
      * Streamlined REST call execution with better performance
@@ -303,29 +329,6 @@ public class RestClientExecutor {
                 recordFailure(logObject, ex.getMessage(), stopWatch.getTotalTimeMillis());
             }
             throw new RestClientExecutionException("Unexpected error during REST call", ex);
-        }
-    }
-
-    /**
-     * Validates execute method parameters
-     */
-    private void validateExecuteParameters(HttpMethod method, String url,
-                                           ParameterizedTypeReference<?> responseType,
-                                           CallOperation operation, String userName) {
-        if (method == null) {
-            throw new IllegalArgumentException("HTTP method cannot be null");
-        }
-        if (!StringUtils.hasText(url)) {
-            throw new IllegalArgumentException("URL cannot be null or empty");
-        }
-        if (responseType == null) {
-            throw new IllegalArgumentException("Response type cannot be null");
-        }
-        if (operation == null) {
-            throw new IllegalArgumentException("Store operation cannot be null");
-        }
-        if (useOAuth2 == null) {
-            throw new IllegalStateException("OAuth2 flag must be set before REST calls");
         }
     }
 
@@ -523,73 +526,7 @@ public class RestClientExecutor {
     }
 
 
-    /**
-     * Execution context for better tracing and debugging
-     */
-    private static class ExecutionContext {
-        private final HttpMethod method;
-        private final String url;
-        private final CallOperation operation;
-        private final String userName;
-        private final long startTime;
 
-        private ExecutionContext(HttpMethod method, String url, CallOperation operation,
-                                 String userName, long startTime) {
-            this.method = method;
-            this.url = url;
-            this.operation = operation;
-            this.userName = userName;
-            this.startTime = startTime;
-        }
-
-        public static ExecutionContextBuilder builder() {
-            return new ExecutionContextBuilder();
-        }
-
-        // Getters
-        public HttpMethod getMethod() { return method; }
-        public String getUrl() { return url; }
-        public CallOperation getOperation() { return operation; }
-        public String getUserName() { return userName; }
-        public long getStartTime() { return startTime; }
-
-        public static class ExecutionContextBuilder {
-            private HttpMethod method;
-            private String url;
-            private CallOperation operation;
-            private String userName;
-            private long startTime;
-
-            public ExecutionContextBuilder method(HttpMethod method) {
-                this.method = method;
-                return this;
-            }
-
-            public ExecutionContextBuilder url(String url) {
-                this.url = url;
-                return this;
-            }
-
-            public ExecutionContextBuilder operation(CallOperation operation) {
-                this.operation = operation;
-                return this;
-            }
-
-            public ExecutionContextBuilder userName(String userName) {
-                this.userName = userName;
-                return this;
-            }
-
-            public ExecutionContextBuilder startTime(long startTime) {
-                this.startTime = startTime;
-                return this;
-            }
-
-            public ExecutionContext build() {
-                return new ExecutionContext(method, url, operation, userName, startTime);
-            }
-        }
-    }
 
     /**
      * Custom exception for better error handling
