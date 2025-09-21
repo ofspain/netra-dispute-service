@@ -16,9 +16,9 @@ public class ExecutorUtil {
     private final MeterRegistry meterRegistry;
     private final AuditLogger auditLogger;
 
-    public ExecutorUtil(MeterRegistry meterRegistry, AuditLogger auditLogger) {
+    public ExecutorUtil(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
-        this.auditLogger = auditLogger;
+        this.auditLogger = new AuditLogger();
     }
 
     public <T> T executeRequest(

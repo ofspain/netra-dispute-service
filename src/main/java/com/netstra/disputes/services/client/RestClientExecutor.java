@@ -47,8 +47,6 @@ public class RestClientExecutor {
     private static final String SUCCESS_STATUS = "200";
     private static final int STACK_SKIP_FRAMES = 2;
 
-    private final RestClient plainRestClient;
-    private final RestClient oauthRestClient;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final ExecutorService timeLimiterExecutor;
@@ -70,8 +68,6 @@ public class RestClientExecutor {
 
     @Autowired
     public RestClientExecutor(
-            @Qualifier("restClient") RestClient plainRestClient,
-            @Qualifier("oauthRestClient") RestClient oauthRestClient,
             ObjectMapper objectMapper,
             ApplicationEventPublisher eventPublisher,
             RetryRegistry retryRegistry,
@@ -82,8 +78,6 @@ public class RestClientExecutor {
             @Qualifier("awsVault")VaultManager vaultManager,
             ExecutorUtil executor) {
 
-        this.plainRestClient = plainRestClient;
-        this.oauthRestClient = oauthRestClient;
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
         this.timeLimiterExecutor = timeLimiterExecutor;

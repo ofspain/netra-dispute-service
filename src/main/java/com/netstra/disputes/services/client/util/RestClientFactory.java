@@ -1,6 +1,8 @@
 package com.netstra.disputes.services.client.util;
 
-import com.netra.commons.models.endpoint.*;
+import com.netra.commons.models.endpoint.MtlsAuth;
+import com.netra.commons.models.endpoint.NetworkConfig;
+import com.netra.commons.models.endpoint.ProxyConfig;
 import com.netstra.disputes.services.client.EndpointSecretManager;
 import com.netstra.disputes.services.client.MtlsContextService;
 import jakarta.validation.Validator;
@@ -16,11 +18,9 @@ import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
-import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.HttpsSupport;
 import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
 import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.ssl.TLS;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
@@ -29,8 +29,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import javax.net.ssl.SSLContext;
-import java.net.Authenticator;
-import java.net.PasswordAuthentication;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
