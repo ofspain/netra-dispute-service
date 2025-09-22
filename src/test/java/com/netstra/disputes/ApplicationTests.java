@@ -3,6 +3,7 @@ package com.netstra.disputes;
 import com.netra.commons.enums.DomainType;
 import com.netra.commons.models.endpoint.*;
 import com.netstra.disputes.services.client.RestClientExecutor;
+import com.netstra.disputes.services.client.util.RestClientFactory;
 import com.netstra.disputes.services.client.vault.VaultManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,15 +17,21 @@ import java.util.List;
 import java.util.Map;
 
 @SpringBootTest
-class DisputeServiceApplicationTests {
+class ApplicationTests {
 
 	@Autowired
 	@Qualifier("awsVault")
 	private VaultManager vaultManager;
 
+	@Autowired
+	private RestClientExecutor executor;
+
+	@Autowired
+	private RestClientFactory restClientFactory;
+
 	// === 1. GTB Payments (API Key + Static/Dynamic Headers) ===
 	@Test
-	void testEndpoint1_gtbPayment() {
+	void testEndpoint1() {
 		EndpointConfig config = new EndpointConfig();
 		config.setId(4578L);
 		config.setDomainCode("BANK_GTB");
@@ -74,8 +81,7 @@ class DisputeServiceApplicationTests {
 		config.setResilience(resilience);
 
 		// Executor usage
-		RestClientExecutor executor = null;
-		RestClient client = null;
+		RestClient client = restClientFactory.buildRestClientUnProxied(30);
 		Map<String, String> pathParams = Map.of();
 		Map<String, String> queryParams = Map.of("currency", "USD");
 		Map<String, String> headers = Map.of(
@@ -112,7 +118,7 @@ class DisputeServiceApplicationTests {
 
 	// === 2. Monnify Wallet Balance (mTLS + Bearer) ===
 	@Test
-	void testEndpoint2_walletBalance() {
+	void testEndpoint2() {
 		EndpointConfig config = new EndpointConfig();
 		config.setDomainCode("MONNIFY");
 		config.setDomainType(DomainType.FINANCIAL_INSTITUTION);
@@ -154,7 +160,7 @@ class DisputeServiceApplicationTests {
 
 	// === 3. FX Provider Rates (AES Encryption + Fallback) ===
 	@Test
-	void testEndpoint3_fxRates() {
+	void testEndpoint3() {
 		EndpointConfig config = new EndpointConfig();
 		config.setDomainCode("FX_PROVIDER");
 		config.setDomainType(DomainType.FINANCIAL_INSTITUTION);
@@ -212,7 +218,7 @@ class DisputeServiceApplicationTests {
 
 	// === 4. StockData (API Key Auth) ===
 	@Test
-	void testEndpoint4_stockData() {
+	void testEndpoint4() {
 		EndpointConfig config = new EndpointConfig();
 		config.setDomainCode("STOCKDATA");
 		config.setDomainType(DomainType.FINANCIAL_INSTITUTION);
@@ -249,7 +255,7 @@ class DisputeServiceApplicationTests {
 
 	// === 5. Legacy System (Basic Auth + Retry Policy) ===
 	@Test
-	void testEndpoint5_legacySystem() {
+	void testEndpoint5() {
 		EndpointConfig config = new EndpointConfig();
 		config.setDomainCode("LEGACY_SYS");
 		config.setDomainType(DomainType.FINANCIAL_INSTITUTION);
@@ -291,7 +297,7 @@ class DisputeServiceApplicationTests {
 
 	// === 6. Partner API (Proxy + Circuit Breaker) ===
 	@Test
-	void testEndpoint6_partnerApi() {
+	void testEndpoint6() {
 		EndpointConfig config = new EndpointConfig();
 		config.setDomainCode("PARTNER_API");
 		config.setDomainType(DomainType.FINANCIAL_INSTITUTION);
@@ -334,4 +340,263 @@ class DisputeServiceApplicationTests {
 
 		System.out.println("Config (PartnerAPI): " + config);
 	}
+
+
+	@Test
+	void testEndpointWithBearerTokenAuth() {
+		EndpointConfig config = new EndpointConfig();
+		config.setId(7851L);
+		config.setDomainCode("PAYPAL");
+		config.setDomainType(DomainType.FINANCIAL_INSTITUTION);
+		config.setDescription("PayPal transaction endpoints");
+		config.setDomainOwnerId(300L);
+
+		// Network
+		NetworkConfig network = new NetworkConfig();
+		network.setBaseUrl("https://api.paypal.com");
+		config.setNetwork(network);
+
+		// Security: Bearer
+		BearerTokenAuth bearerAuth = new BearerTokenAuth();
+		bearerAuth.setHeaderName("Authorization");
+		bearerAuth.setToken("vault:secrets/bearer-paypal");
+		bearerAuth.setPrefix("Bearer");
+		SecurityConfig security = new SecurityConfig();
+		security.setAuthConfigs(List.of(bearerAuth));
+		config.setSecurity(security);
+
+		// Endpoint detail
+		EndpointDetail detail = new EndpointDetail();
+		detail.setUrl("/v1/payments");
+		detail.setMethod(EndpointDetail.HTTPMethod.POST);
+		detail.setHeaders(List.of(
+				new StaticHeader("X-Client", "paypal-client", true)
+		));
+		detail.setRequestBodyTemplate("""
+        {
+          "payer_id": "${payerId}",
+          "amount": ${amount},
+          "currency": "${currency}"
+        }
+    """);
+		config.setEndpoints(Map.of(
+				EndpointConfig.OperationType.UNIQUE_TRANSACTION_SEARCH, detail
+		));
+
+		// Resilience
+		ResilienceConfig resilience = new ResilienceConfig();
+		resilience.getRetry().setMaxAttempts(3);
+		config.setResilience(resilience);
+
+		// Executor usage
+		RestClient client = restClientFactory.buildRestClientUnProxied(30);
+		Map<String, String> pathParams = Map.of();
+		Map<String, String> queryParams = Map.of("currency", "USD");
+		Map<DynamicHeader,String> dynamicHeaderMap = Map.of();
+
+		Map<String, String> bodyContext = Map.of(
+				"payerId", "PAYER-007",
+				"amount", "1200",
+				"currency", "USD"
+		);
+
+		ParameterizedTypeReference<Map<String, Object>> responseType = new ParameterizedTypeReference<>() {};
+		Map<String, Object> response = executor.executeUniqueTransactionRequest(
+				client, config, pathParams, queryParams, dynamicHeaderMap, bodyContext, responseType
+		);
+
+		System.out.println("Response (PayPal Payment): " + response);
+	}
+
+
+	@Test
+	void testEndpointWithBasicAuth() {
+		EndpointConfig config = new EndpointConfig();
+		config.setId(9902L);
+		config.setDomainCode("SHOPIFY");
+		config.setDomainType(DomainType.FINANCIAL_INSTITUTION);
+		config.setDescription("Shopify order endpoints");
+		config.setDomainOwnerId(400L);
+
+		// Network
+		NetworkConfig network = new NetworkConfig();
+		network.setBaseUrl("https://api.shopify.com");
+		config.setNetwork(network);
+
+		// Security: Basic
+		BasicAuth basicAuth = new BasicAuth();
+		basicAuth.setHeaderName("Authorization");
+		basicAuth.setUsername("vault:secrets/shopify-username");
+		basicAuth.setPassword("vault:secrets/shopify-password");
+		basicAuth.setTokenPrefix("Basic");
+		SecurityConfig security = new SecurityConfig();
+		security.setAuthConfigs(List.of(basicAuth));
+		config.setSecurity(security);
+
+		// Endpoint detail
+		EndpointDetail detail = new EndpointDetail();
+		detail.setUrl("/v1/orders");
+		detail.setMethod(EndpointDetail.HTTPMethod.GET);
+		detail.setHeaders(List.of(
+				new StaticHeader("X-Client", "shopify-client", true)
+		));
+		config.setEndpoints(Map.of(
+				EndpointConfig.OperationType.UNIQUE_TRANSACTION_SEARCH, detail
+		));
+
+		// Resilience
+		ResilienceConfig resilience = new ResilienceConfig();
+		resilience.getRetry().setMaxAttempts(2);
+		config.setResilience(resilience);
+
+		// Executor usage
+		RestClient client = restClientFactory.buildRestClientUnProxied(30);
+		Map<String, String> pathParams = Map.of();
+		Map<String, String> queryParams = Map.of("status", "open");
+		Map<DynamicHeader,String> dynamicHeaderMap = Map.of();
+
+		Map<String, String> bodyContext = Map.of();
+
+		ParameterizedTypeReference<Map<String, Object>> responseType = new ParameterizedTypeReference<>() {};
+		Map<String, Object> response = executor.executeUniqueTransactionRequest(
+				client, config, pathParams, queryParams, dynamicHeaderMap, bodyContext, responseType
+		);
+
+		System.out.println("Response (Shopify Orders): " + response);
+	}
+
+
+	@Test
+	void testEndpointWithApiKeyAndBearerAuth() {
+		EndpointConfig config = new EndpointConfig();
+		config.setId(7781L);
+		config.setDomainCode("STRIPE");
+		config.setDomainType(DomainType.FINANCIAL_INSTITUTION);
+		config.setDescription("Stripe payment endpoints");
+		config.setDomainOwnerId(500L);
+
+		// Network
+		NetworkConfig network = new NetworkConfig();
+		network.setBaseUrl("https://api.stripe.com");
+		config.setNetwork(network);
+
+		// Security: API Key + Bearer
+		ApiKeyAuth apiKeyAuth = new ApiKeyAuth();
+		apiKeyAuth.setHeaderName("X-API-KEY");
+		apiKeyAuth.setApiKey("vault:secrets/stripe-api-key");
+
+		BearerTokenAuth bearerAuth = new BearerTokenAuth();
+		bearerAuth.setHeaderName("Authorization");
+		bearerAuth.setToken("vault:secrets/stripe-bearer-token");
+		bearerAuth.setPrefix("Bearer");
+
+		SecurityConfig security = new SecurityConfig();
+		security.setAuthConfigs(List.of(apiKeyAuth, bearerAuth));
+		config.setSecurity(security);
+
+		// Endpoint detail
+		EndpointDetail detail = new EndpointDetail();
+		detail.setUrl("/v1/charges");
+		detail.setMethod(EndpointDetail.HTTPMethod.POST);
+		detail.setHeaders(List.of(
+				new StaticHeader("X-Client", "stripe-client", true)
+		));
+		detail.setRequestBodyTemplate("""
+        {
+          "customer": "${customerId}",
+          "amount": ${amount},
+          "currency": "${currency}"
+        }
+    """);
+		config.setEndpoints(Map.of(
+				EndpointConfig.OperationType.UNIQUE_TRANSACTION_SEARCH, detail
+		));
+
+		// Resilience
+		ResilienceConfig resilience = new ResilienceConfig();
+		resilience.getRetry().setMaxAttempts(3);
+		config.setResilience(resilience);
+
+		// Executor usage
+		RestClient client = restClientFactory.buildRestClientUnProxied(30);
+		Map<String, String> pathParams = Map.of();
+		Map<String, String> queryParams = Map.of();
+		Map<DynamicHeader,String> dynamicHeaderMap = Map.of();
+
+		Map<String, String> bodyContext = Map.of(
+				"customerId", "CUST-9001",
+				"amount", "2500",
+				"currency", "USD"
+		);
+
+		ParameterizedTypeReference<Map<String, Object>> responseType = new ParameterizedTypeReference<>() {};
+		Map<String, Object> response = executor.executeUniqueTransactionRequest(
+				client, config, pathParams, queryParams, dynamicHeaderMap, bodyContext, responseType
+		);
+
+		System.out.println("Response (Stripe Charge): " + response);
+	}
+
+	@Test
+	void testEndpointWithApiKeyAndBasicAuth() {
+		EndpointConfig config = new EndpointConfig();
+		config.setId(8851L);
+		config.setDomainCode("SALESFORCE");
+		config.setDomainType(DomainType.SWITCH);
+		config.setDescription("Salesforce API endpoints");
+		config.setDomainOwnerId(600L);
+
+		// Network
+		NetworkConfig network = new NetworkConfig();
+		network.setBaseUrl("https://api.salesforce.com");
+		config.setNetwork(network);
+
+		// Security: API Key + Basic
+		ApiKeyAuth apiKeyAuth = new ApiKeyAuth();
+		apiKeyAuth.setHeaderName("X-API-KEY");
+		apiKeyAuth.setApiKey("vault:secrets/salesforce-api-key");
+
+		BasicAuth basicAuth = new BasicAuth();
+		basicAuth.setHeaderName("Authorization");
+		basicAuth.setUsername("vault:secrets/salesforce-username");
+		basicAuth.setPassword("vault:secrets/salesforce-password");
+		basicAuth.setTokenPrefix("Basic");
+
+		SecurityConfig security = new SecurityConfig();
+		security.setAuthConfigs(List.of(apiKeyAuth, basicAuth));
+		config.setSecurity(security);
+
+		// Endpoint detail
+		EndpointDetail detail = new EndpointDetail();
+		detail.setUrl("/v1/accounts");
+		detail.setMethod(EndpointDetail.HTTPMethod.GET);
+		detail.setHeaders(List.of(
+				new StaticHeader("X-Client", "salesforce-client", true)
+		));
+		config.setEndpoints(Map.of(
+				EndpointConfig.OperationType.UNIQUE_TRANSACTION_SEARCH, detail
+		));
+
+		// Resilience
+		ResilienceConfig resilience = new ResilienceConfig();
+		resilience.getRetry().setMaxAttempts(2);
+		config.setResilience(resilience);
+
+		// Executor usage
+		RestClient client = restClientFactory.buildRestClientUnProxied(30);
+		Map<String, String> pathParams = Map.of();
+		Map<String, String> queryParams = Map.of("active", "true");
+		Map<DynamicHeader,String> dynamicHeaderMap = Map.of();
+
+		Map<String, String> bodyContext = Map.of();
+
+		ParameterizedTypeReference<Map<String, Object>> responseType = new ParameterizedTypeReference<>() {};
+		Map<String, Object> response = executor.executeUniqueTransactionRequest(
+				client, config, pathParams, queryParams, dynamicHeaderMap, bodyContext, responseType
+		);
+
+		System.out.println("Response (Salesforce Accounts): " + response);
+	}
+
+
 }

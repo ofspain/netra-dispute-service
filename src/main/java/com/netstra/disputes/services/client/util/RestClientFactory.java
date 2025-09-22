@@ -3,6 +3,7 @@ package com.netstra.disputes.services.client.util;
 import com.netra.commons.models.endpoint.MtlsAuth;
 import com.netra.commons.models.endpoint.NetworkConfig;
 import com.netra.commons.models.endpoint.ProxyConfig;
+import com.netra.commons.util.BasicUtil;
 import com.netstra.disputes.services.client.EndpointSecretManager;
 import com.netstra.disputes.services.client.MtlsContextService;
 import jakarta.validation.Validator;
@@ -76,7 +77,7 @@ public class RestClientFactory {
                 .setDefaultRequestConfig(requestConfig);
 
         // Configure proxy authentication only if credentials are provided
-        if (proxyUsername != null && !proxyUsername.isBlank() && proxyPassword != null) {
+        if (BasicUtil.validString(proxyUsername) && proxyPassword != null) {
             log.debug("Configuring proxy authentication for user: {}", proxyUsername);
 
             BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
