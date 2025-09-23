@@ -37,7 +37,7 @@ public class DomainRestClientFactory {
     private final int clientTtlHours = 2;
 
     public RestTemplate getClient(EndpointConfig config) {
-        EndpointConfigIdentity identity = new EndpointConfigIdentity(config.getDomainType(), config.getDomainOwnerId(), config.getDomainCode());
+        EndpointConfigIdentity identity = new EndpointConfigIdentity(config.getId(), config.getDomainType(), config.getDomainOwnerId(), config.getDomainCode());
 
         String cachedId = Utility.calculateCachedRestClientId(identity);
 

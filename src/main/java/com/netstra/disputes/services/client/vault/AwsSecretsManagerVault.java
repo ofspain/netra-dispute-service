@@ -12,7 +12,7 @@ public class AwsSecretsManagerVault implements VaultManager {
     public String getSecret(String vaultPath) {
         // Internally you could create AwsSecretRequest here
         // and call AWS Secrets Manager
-        return "aws-secret-for-" + vaultPath;
+        return "secret-resolved-from-aws-vault";// + vaultPath;
     }
 }
 

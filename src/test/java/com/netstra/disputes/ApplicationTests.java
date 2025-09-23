@@ -48,6 +48,11 @@ class ApplicationTests {
 		ApiKeyAuth apiKeyAuth = new ApiKeyAuth();
 		apiKeyAuth.setHeaderName("X-API-KEY");
 		apiKeyAuth.setApiKey("vault:secrets/apiKey-gtb");
+//		apiKeyAuth.setAsQueryParam(true);
+		apiKeyAuth.setQueryParamName("api-key");
+		apiKeyAuth.setPrefix("pre");
+		apiKeyAuth.setPrefixSeparator("<~>");
+		apiKeyAuth.setSuffix("@suf");
 		SecurityConfig security = new SecurityConfig();
 		security.setAuthConfigs(List.of(apiKeyAuth));
 		config.setSecurity(security);
@@ -151,12 +156,49 @@ class ApplicationTests {
 				new DynamicHeader("Authorization", true, "Bearer token")
 		));
 
+
 		config.setEndpoints(Map.of(
 				EndpointConfig.OperationType.UNIQUE_TRANSACTION_SEARCH, detail
 		));
 
-		System.out.println("Config (WalletBalance): " + config);
+		// === Resilience (retry like in desired) ===
+		ResilienceConfig resilience = new ResilienceConfig();
+		resilience.getRetry().setMaxAttempts(3);
+		config.setResilience(resilience);
+
+		// === Executor + inputs ===
+		RestClient client = restClientFactory.buildRestClientUnProxied(30);
+
+		Map<String, String> pathParams = Map.of(
+				"walletId", "WALLET-12345"
+		);
+		Map<String, String> queryParams = Map.of(
+				"currency", "NGN"
+		);
+
+		List<DynamicHeader> dynamicHeaders = detail.getDynamicHeaders();
+		Map<DynamicHeader, String> dynamicHeaderMap = new HashMap<>();
+		for (DynamicHeader dynamicHeader : dynamicHeaders) {
+			if (dynamicHeader.isRequired()) {
+				// in practice, resolve from vault/token service
+				String value = "Bearer dummy-token";
+				dynamicHeaderMap.put(dynamicHeader, value);
+			}
+		}
+
+		// For GET no body, but keep empty
+		Map<String, String> bodyContext = Map.of();
+
+		ParameterizedTypeReference<Map<String, Object>> responseType =
+				new ParameterizedTypeReference<>() {};
+
+		Map<String, Object> response = executor.executeUniqueTransactionRequest(
+				client, config, pathParams, queryParams, dynamicHeaderMap, bodyContext, responseType
+		);
+
+		System.out.println("Response (Monnify Wallet Balance): " + response);
 	}
+
 
 	// === 3. FX Provider Rates (AES Encryption + Fallback) ===
 	@Test
@@ -166,55 +208,126 @@ class ApplicationTests {
 		config.setDomainType(DomainType.FINANCIAL_INSTITUTION);
 		config.setDescription("FX provider exchange rate lookup");
 
+		// === Network ===
 		NetworkConfig network = new NetworkConfig();
 		network.setBaseUrl("http://192.168.1.20:8080/api");
 		config.setNetwork(network);
 
-		// Security with Encryption
+		// === Security with Encryption ===
 		EncryptionConfig enc = new EncryptionConfig();
 		enc.setType(EncryptionConfig.EncryptionType.AES);
 		enc.setAlgorithm("AES/GCM/NoPadding");
 		enc.setEncryptionKey("vault:keys/aes-key");
+
 		Map<String, String> headerMap = Map.of(
-				"Transaction-Id", null,          // dynamic
-				"Date", "2025-09-20T12:00:00Z"   // static
+				"Transaction-Id", "transREF",          // dynamic
+				"Date", "2025-09-20T12:00:00Z"         // static
 		);
 
 		List<EncryptionConfig.AadHeader> aadHeaders = headerMap.entrySet().stream()
-				.map(entry -> new EncryptionConfig.AadHeader(entry.getKey(), entry.getValue(), false, entry.getValue() == null))
-				.toList();
+				.map(entry -> new EncryptionConfig.AadHeader(
+						entry.getKey(),
+						entry.getValue(),
+						false,
+						entry.getValue() == null)
+				).toList();
 
 		enc.setAadHeaders(aadHeaders);
+
+		// === Security with Signature ===
+		CustomSignatureAuth sig = new CustomSignatureAuth();
+		sig.setAlgo("HMAC-SHA256");
+		sig.setKey("vault:keys/hmac-secret");
+		sig.setSignatureName("X-Signature");
+		sig.setPlacement(CustomSignatureAuth.SignaturePlacement.HEADER);
+		sig.setComponents(List.of(
+				CustomSignatureAuth.SignatureComponent.METHOD,
+				CustomSignatureAuth.SignatureComponent.PATH,
+				CustomSignatureAuth.SignatureComponent.QUERY_STRING,
+				CustomSignatureAuth.SignatureComponent.BODY,
+				CustomSignatureAuth.SignatureComponent.TIMESTAMP
+		));
+
+		// === Encapsulate both in SecurityConfig ===
 		SecurityConfig security = new SecurityConfig();
 		security.setEncryption(enc);
+		security.getAuthConfigs().add(sig);
 		config.setSecurity(security);
 
+		// === Endpoint detail ===
 		EndpointDetail rates = new EndpointDetail();
 		rates.setUrl("/api/rates");
-		rates.setMethod(EndpointDetail.HTTPMethod.GET);
+		rates.setMethod(EndpointDetail.HTTPMethod.POST);
 		rates.setQueryParamKeys(List.of("baseCurrency", "targetCurrencies"));
-		rates.setDynamicHeaders(List.of(new DynamicHeader("x-api-key", true, "API Key")));
+		rates.setDynamicHeaders(List.of(
+				new DynamicHeader("x-api-key", true, "API Key")
+		));
+
+		rates.setRequestBodyTemplate("""
+            {
+              "id": "${customerId}",
+              "transactionAmount": ${amount},
+              "currency": "${currency}",
+              "note": "${note}"
+            }
+        """);
+
+		Map<String, String> bodyContext = Map.of(
+				"customerId", "CUST001",
+				"amount", "5000",
+				"currency", "NGN",
+				"note", "Payment for invoice #123"
+		);
 
 		config.setEndpoints(Map.of(
 				EndpointConfig.OperationType.BULK_TRANSACTION_SEARCH, rates
 		));
 
-		// Fallback
+		// === Resilience with Fallback ===
 		FallbackConfig fallback = new FallbackConfig();
 		fallback.setType(FallbackConfig.FallbackType.STATIC_RESPONSE);
 		fallback.setValue("""
-            {
-              "baseCurrency": "USD",
-              "targetCurrencies": ["EUR", "NGN"],
-              "rates": { "EUR": 0.9, "NGN": 1500 }
-            }
-        """);
+        {
+          "baseCurrency": "USD",
+          "targetCurrencies": ["EUR", "NGN"],
+          "rates": { "EUR": 0.9, "NGN": 1500 }
+        }
+    """);
+
 		ResilienceConfig resilience = new ResilienceConfig();
+		resilience.getRetry().setMaxAttempts(3);
 		resilience.setFallback(fallback);
 		config.setResilience(resilience);
 
-		System.out.println("Config (FX Rates): " + config);
+		// === Executor usage (DESIRABLE part) ===
+		RestClient client = restClientFactory.buildRestClientUnProxied(30);
+
+		Map<String, String> pathParams = Map.of(); // none for this endpoint
+		Map<String, String> queryParams = new HashMap<>();
+		queryParams.put("baseCurrency", "USD");
+		queryParams.put("targetCurrencies", "EUR,NGN");
+
+		// Dynamic headers
+		List<DynamicHeader> dynamicHeaders = rates.getDynamicHeaders();
+		Map<DynamicHeader, String> dynamicHeaderMap = new HashMap<>();
+		for (DynamicHeader dynamicHeader : dynamicHeaders) {
+			if (dynamicHeader.isRequired()) {
+				dynamicHeaderMap.put(dynamicHeader, "dummy-api-key");
+			}
+		}
+
+
+		ParameterizedTypeReference<Map<String, Object>> responseType =
+				new ParameterizedTypeReference<>() {};
+
+		Map<String, Object> response = executor.executeMultipleTransactionRequest(
+				client, config, pathParams, queryParams, dynamicHeaderMap, bodyContext, responseType
+		);
+
+		System.out.println("Response (FX Rates): " + response);
 	}
+
+
 
 	// === 4. StockData (API Key Auth) ===
 	@Test

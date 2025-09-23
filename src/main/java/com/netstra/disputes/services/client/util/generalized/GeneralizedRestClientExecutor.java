@@ -64,7 +64,7 @@ public class GeneralizedRestClientExecutor {
                          ParameterizedTypeReference<T> responseType, Map<String,String> requestBodyContext, ParamsDTO paramsDTO,
                          boolean audit) {
 
-        EndpointConfigIdentity identity = new EndpointConfigIdentity(config.getDomainType(), config.getDomainOwnerId(), config.getDomainCode());
+        EndpointConfigIdentity identity = new EndpointConfigIdentity(config.getId(), config.getDomainType(), config.getDomainOwnerId(), config.getDomainCode());
 
         String id = Utility.calculateCachedRestClientId(identity);
 
