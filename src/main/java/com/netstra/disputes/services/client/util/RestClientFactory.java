@@ -136,15 +136,13 @@ public class RestClientFactory {
 
         String cacheId = Utility.calculateCachedRestClientId(identity);
 
-        String domainCode = identity.domainCode();
-
         return mtlsClientCache.compute(cacheId, (id, existing) -> {
             if (existing != null && !existing.isExpired()) {
                 return existing;
             }
 
             int timeout = networkConfig.getTimeoutMillis();
-            SSLContext sslContext = mtlsContextService.getOrCreateContext(domainCode, mtlsConfig);
+            SSLContext sslContext = mtlsContextService.getOrCreateContext(identity, mtlsConfig);
 
             RequestConfig requestConfig = RequestConfig.custom()
                     .setConnectTimeout(Timeout.ofMilliseconds(timeout))

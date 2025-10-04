@@ -28,6 +28,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -60,16 +61,24 @@ public class GeneralizedRestClientExecutor {
     /**
      * Executes a request for a given endpoint and operation.
      */
-    public <T> T execute(EndpointConfig config, EndpointConfig.OperationType operationType,
+    public <T> T execute(EndpointConfig config, EndpointDetail.OperationType operationType,
                          ParameterizedTypeReference<T> responseType, Map<String,String> requestBodyContext, ParamsDTO paramsDTO,
                          boolean audit) {
 
-        EndpointConfigIdentity identity = new EndpointConfigIdentity(config.getId(), config.getDomainType(), config.getDomainOwnerId(), config.getDomainCode());
+        EndpointConfigIdentity identity = new EndpointConfigIdentity(config.getId(), config.getDomainOwnerType(), config.getDomainOwnerId(), config.getDomainOwnerCode());
 
         String id = Utility.calculateCachedRestClientId(identity);
 
+        //todo: reevaluate what exception to throw here
+        EndpointDetail endpointDetail = config.getEndpoints().stream()
+                .filter(e -> e.getOperationType().equals(operationType))
+                .findFirst()
+                .orElseThrow(() ->
+                        new NoSuchElementException("No endpoint found for operationType: "+ operationType)
+                );
+
         ResolvedRequest resolvedRequest = Utility.prepareEndpointRequest(
-                config.getEndpoints().get(operationType),config,  requestBodyContext, paramsDTO,vaultManager
+                endpointDetail,config,  requestBodyContext, paramsDTO,vaultManager
         );
         ResilienceConfig resilience = config.getResilience();
 
@@ -115,7 +124,7 @@ public class GeneralizedRestClientExecutor {
             T result = decorated.get();
             if (audit) {
                 auditLogger.logSuccess(
-                        config.getDomainCode(),
+                        config.getDomainOwnerCode(),
                         HttpMethod.POST,
                         url,
                         entity.getHeaders(),
@@ -128,7 +137,7 @@ public class GeneralizedRestClientExecutor {
         } catch (Exception e) {
             if (audit) {
                 auditLogger.logFailure(
-                        config.getDomainCode(),
+                        config.getDomainOwnerCode(),
                         HttpMethod.POST,
                         url,
                         entity.getHeaders(),

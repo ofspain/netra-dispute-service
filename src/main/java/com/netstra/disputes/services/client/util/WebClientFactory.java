@@ -88,7 +88,7 @@ public class WebClientFactory {
                 int timeout = networkConfig.getTimeoutMillis();
 
                 // JDK SSLContext from your service
-                SSLContext jdkSslContext = mtlsContextService.getOrCreateContext(domainCode, mtlsConfig);
+                SSLContext jdkSslContext = mtlsContextService.getOrCreateContext(identity, mtlsConfig);
 
 // Wrap it as Netty's SslContext
                 SslContext nettySslContext = new JdkSslContext(jdkSslContext, true, ClientAuth.NONE);

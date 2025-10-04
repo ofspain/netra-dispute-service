@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netra.commons.models.endpoint.DynamicHeader;
 import com.netra.commons.models.endpoint.EndpointConfig;
+import com.netra.commons.models.endpoint.EndpointDetail;
 import com.netra.commons.trace.CallOperation;
 import com.netra.commons.trace.LogObject;
 import com.netra.commons.trace.LogObjectRequestEvent;
@@ -32,6 +33,7 @@ import org.springframework.web.client.RestClientResponseException;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -107,9 +109,19 @@ public class RestClientExecutor {
         // 1️⃣ Prepare ParamsDTO
         ParamsDTO paramsDTO = new ParamsDTO(pathParams, queryParams, dynamicHeaderValues);
 
+        EndpointDetail.OperationType operationType = EndpointDetail.OperationType.UNIQUE_TRANSACTION_SEARCH;
+
+        //todo: reevaluate what exception to throw here
+        EndpointDetail uniqueEndpointDetail = config.getEndpoints().stream()
+                .filter(e -> e.getOperationType().equals(operationType))
+                .findFirst()
+                .orElseThrow(() ->
+                        new NoSuchElementException("No endpoint found for operationType" + operationType)
+                );
+
         // 2️⃣ Prepare the resolved endpoint request
         ResolvedRequest dto = Utility.prepareEndpointRequest(
-                config.getEndpoints().get(EndpointConfig.OperationType.UNIQUE_TRANSACTION_SEARCH),
+                uniqueEndpointDetail,
                 config,
                 requestBodyContext,
                 paramsDTO,
@@ -126,7 +138,7 @@ public class RestClientExecutor {
                 client,
                 dto,
                 responseType,
-                config.getDomainCode(),
+                config.getDomainOwnerCode(),
                 false
         );
     }
@@ -144,9 +156,19 @@ public class RestClientExecutor {
         // 1️⃣ Prepare ParamsDTO
         ParamsDTO paramsDTO = new ParamsDTO(pathParams, queryParams, dynamicHeaderValues);
 
+        EndpointDetail.OperationType operationType = EndpointDetail.OperationType.BULK_TRANSACTION_SEARCH;
+
+        //todo: reevaluate what exception to throw here
+        EndpointDetail bulkEndpointDetail = config.getEndpoints().stream()
+                .filter(e -> e.getOperationType().equals(operationType))
+                .findFirst()
+                .orElseThrow(() ->
+                        new NoSuchElementException("No endpoint found for operationType: "+ operationType)
+                );
+
         // 2️⃣ Prepare the resolved endpoint request
         ResolvedRequest dto = Utility.prepareEndpointRequest(
-                config.getEndpoints().get(EndpointConfig.OperationType.BULK_TRANSACTION_SEARCH),
+                bulkEndpointDetail,
                 config,
                 requestBodyContext,
                 paramsDTO,
@@ -163,7 +185,7 @@ public class RestClientExecutor {
                 client,
                 dto,
                 responseType,
-                config.getDomainCode(),
+                config.getDomainOwnerCode(),
                 false
         );
     }

@@ -1,5 +1,6 @@
 package com.netstra.disputes.services.client;
 
+import com.netstra.disputes.services.client.util.EndpointConfigIdentity;
 import com.netstra.disputes.services.client.util.MtlsContextEntry;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +24,7 @@ public class MtlsContextService {
     private final EndpointSecretManager secretManager;
 
     // Local in-memory cache (fast path), keyed by domainCode
-    private final Map<String, SSLContext> localCache = new ConcurrentHashMap<>();
+    private final Map<EndpointConfigIdentity, SSLContext> localCache = new ConcurrentHashMap<>();
 
     public MtlsContextService(MtlsContextRepository repository,
                               EndpointSecretManager secretManager) {
@@ -31,28 +32,28 @@ public class MtlsContextService {
         this.secretManager = secretManager;
     }
 
-    public SSLContext getOrCreateContext(String domainCode, MtlsAuth mtlsAuth) {
+    public SSLContext getOrCreateContext(EndpointConfigIdentity identity, MtlsAuth mtlsAuth) {
         // 1. Fast path: in-memory cache
-        if (localCache.containsKey(domainCode)) {
-            return localCache.get(domainCode);
+        if (localCache.containsKey(identity)) {
+            return localCache.get(identity);
         }
 
         // 2. Check Redis for metadata
-        Optional<MtlsContextEntry> entryOpt = repository.findById(domainCode);
+        Optional<MtlsContextEntry> entryOpt = repository.findById(identity.toString());
 
         if (entryOpt.isPresent()) {
             MtlsContextEntry entry = entryOpt.get();
 
             // Expiration check
             if (entry.getExpiresAt() != null && Instant.now().isAfter(entry.getExpiresAt())) {
-                repository.deleteById(domainCode);
+                repository.deleteById(identity.toString());
             } else {
                 // Resolve actual secrets from Vault/secret store
                 String certPath = secretManager.resolveSecret(entry.getCertPathAlias());
                 String certPassword = secretManager.resolveSecret(entry.getCertPasswordAlias());
 
                 SSLContext ctx = buildSslContext(certPath, certPassword);
-                localCache.put(domainCode, ctx);
+                localCache.put(identity, ctx);
                 return ctx;
             }
         }
@@ -64,8 +65,7 @@ public class MtlsContextService {
         SSLContext ctx = buildSslContext(certPath, certPassword);
 
         // Save metadata for caching
-        MtlsContextEntry newEntry = new MtlsContextEntry();
-        newEntry.setId(domainCode);
+        MtlsContextEntry newEntry = new MtlsContextEntry(identity);
         newEntry.setCertPathAlias(mtlsAuth.getCertVaultAlias());
         newEntry.setCertPasswordAlias(mtlsAuth.getKeyPasswordVaultAlias());
         newEntry.setLoadedAt(Instant.now());
@@ -73,7 +73,7 @@ public class MtlsContextService {
 
         repository.save(newEntry);
 
-        localCache.put(domainCode, ctx);
+        localCache.put(identity, ctx);
 
         return ctx;
     }

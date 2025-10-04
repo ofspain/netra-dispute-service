@@ -37,7 +37,7 @@ public class DomainRestClientFactory {
     private final int clientTtlHours = 2;
 
     public RestTemplate getClient(EndpointConfig config) {
-        EndpointConfigIdentity identity = new EndpointConfigIdentity(config.getId(), config.getDomainType(), config.getDomainOwnerId(), config.getDomainCode());
+        EndpointConfigIdentity identity = new EndpointConfigIdentity(config.getId(), config.getDomainOwnerType(), config.getDomainOwnerId(), config.getDomainOwnerCode());
 
         String cachedId = Utility.calculateCachedRestClientId(identity);
 
@@ -58,7 +58,9 @@ public class DomainRestClientFactory {
                 : config.getSecurity().getAuthConfigs().get(0);
 
         if (auth instanceof MtlsAuth mtlsAuth) {
-            SSLContext sslContext = mtlsContextService.getOrCreateContext(config.getDomainCode(), mtlsAuth);
+            EndpointConfigIdentity identity = new EndpointConfigIdentity(config.getId(), config.getDomainOwnerType(), config.getDomainOwnerId(), config.getDomainOwnerCode());
+
+            SSLContext sslContext = mtlsContextService.getOrCreateContext(identity, mtlsAuth);
             PoolingHttpClientConnectionManager connManager = PoolingHttpClientConnectionManagerBuilder.create()
                     .setTlsSocketStrategy(ClientTlsStrategyBuilder.create()
                             .setSslContext(sslContext)

@@ -12,6 +12,8 @@ import java.time.Instant;
 @RedisHash("mtls_context")
 public class MtlsContextEntry implements Serializable {
 
+
+
     @Id
     @Indexed
     private String id;   // e.g. "BANK_GTB"
@@ -22,6 +24,10 @@ public class MtlsContextEntry implements Serializable {
     private String certPasswordAlias; // e.g. vault://secrets/cert-pass
     private Instant loadedAt;
     private Instant expiresAt; // optional, in case certs rotate
+
+    public MtlsContextEntry(EndpointConfigIdentity identity) {
+        this.id = identity.toString(); // use the clean key
+    }
 }
 
 //Instead of storing the raw SSLContext (which isn’t serializable and shouldn’t leave memory), you persist the necessary secrets/aliases in Redis.

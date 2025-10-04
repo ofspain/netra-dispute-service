@@ -187,13 +187,7 @@ public class Utility {
     }
 
     public static String calculateCachedRestClientId(EndpointConfigIdentity identity) {
-        Long ownerId = identity.ownerId();
-        String domainCode = identity.domainCode();
-        DomainType type = identity.type();
-        Long selfId = identity.selfId();
-
-        String uuid = selfId + ":" + ":" + domainCode + ":" + type.name() + ownerId;
-        return uuid;
+        return identity.toString();
     }
 
     /**
