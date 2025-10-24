@@ -120,7 +120,7 @@ public class StateMachineService {
 
         // Persist the updated state machine context
         try {
-            persistService.persist(stateMachine, dispute.getId().toString());
+            persistService.persist(stateMachine, dispute.getId().toString(), mode.name());
         } catch (Exception e) {
             throw new RuntimeException("Failed to persist state machine after event processing", e);
         }

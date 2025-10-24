@@ -44,7 +44,7 @@ public class DisputeStateMachinePersistService
     }
 
     // Helper method to persist entire state machine
-    public void persist(StateMachine<DisputeState, DisputeTransitionEvent> stateMachine, String entityId)
+    public void persist(StateMachine<DisputeState, DisputeTransitionEvent> stateMachine, String entityId, String disputeMode)
             throws Exception {
         StateMachineContext<DisputeState, DisputeTransitionEvent> context =
                 new DefaultStateMachineContext<>(
@@ -53,7 +53,7 @@ public class DisputeStateMachinePersistService
                         null,
                         stateMachine.getExtendedState(),
                         null,
-                        stateMachine.getId()
+                        disputeMode+":"+stateMachine.getId()
                 );
         write(context, entityId);
     }
