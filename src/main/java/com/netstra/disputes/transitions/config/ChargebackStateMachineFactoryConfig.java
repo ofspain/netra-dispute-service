@@ -4,7 +4,7 @@ import com.netra.commons.enums.DisputeMode;
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
 import com.netstra.disputes.transitions.actions.DisputeStateMachineAction;
-import com.netstra.disputes.transitions.guards.DisputeBootstrapGuard;
+import com.netstra.disputes.transitions.guards.bootstrap.DisputeBootstrapGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.statemachine.config.EnableStateMachineFactory;

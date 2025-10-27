@@ -1,4 +1,4 @@
-package com.netstra.disputes.transitions.guards;
+package com.netstra.disputes.transitions.guards.bootstrap;
 
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;

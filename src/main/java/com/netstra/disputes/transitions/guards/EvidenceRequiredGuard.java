@@ -3,6 +3,7 @@ package com.netstra.disputes.transitions.guards;
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
 import com.netstra.disputes.services.DisputeService;
+import com.netstra.disputes.transitions.guards.bootstrap.DisputeBootstrapGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
 import org.springframework.statemachine.StateContext;
@@ -28,7 +29,7 @@ public class EvidenceRequiredGuard implements DisputeBootstrapGuard {
         //use disputant to validate that this is going to awaiting_evidence_validation
 
         // Example business rule
-        return disputeService.isUserAllowedToSubmitEvidence(disputeId, currentUser);
+        return false; //disputeService.isUserAllowedToSubmitEvidence(disputeId, currentUser);
     }
 
     @Override
