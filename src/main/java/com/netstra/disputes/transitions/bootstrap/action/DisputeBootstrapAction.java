@@ -1,20 +1,13 @@
-package com.netstra.disputes.transitions.actions;
+package com.netstra.disputes.transitions.bootstrap.action;
 
-import com.netra.commons.enums.DisputeMode;
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
+import com.netstra.disputes.transitions.bootstrap.DisputeBootstrapComponent;
 import org.springframework.statemachine.StateContext;
 import org.springframework.statemachine.action.Action;
 
-public interface DisputeStateMachineAction extends Action<DisputeState, DisputeTransitionEvent> {
-
-    DisputeTransitionEvent trigger();
-    DisputeMode mode();
-
-    default boolean supports(DisputeMode mode, DisputeTransitionEvent event) {
-        return this.mode() == mode && this.trigger() == event;
-    }
-
+public interface DisputeBootstrapAction
+        extends Action<DisputeState, DisputeTransitionEvent>, DisputeBootstrapComponent {
     void perform(StateContext<DisputeState, DisputeTransitionEvent> context);
 
     @Override
@@ -22,4 +15,3 @@ public interface DisputeStateMachineAction extends Action<DisputeState, DisputeT
         perform(context);
     }
 }
-

@@ -3,8 +3,12 @@ package com.netstra.disputes.transitions.config;
 import com.netra.commons.enums.DisputeMode;
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
-import com.netstra.disputes.transitions.actions.DisputeStateMachineAction;
-import com.netstra.disputes.transitions.guards.bootstrap.DisputeBootstrapGuard;
+import com.netstra.disputes.transitions.bootstrap.BootstrapLifecycleRegistry;
+import com.netstra.disputes.transitions.bootstrap.BootstrapTransition;
+import com.netstra.disputes.transitions.bootstrap.action.DisputeBootstrapAction;
+import com.netstra.disputes.transitions.bootstrap.guard.DisputeBootstrapGuard;
+import com.netstra.disputes.transitions.util.ChargebackTransitionRegistry;
+import com.netstra.disputes.transitions.util.StateMachineWiringEngine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.statemachine.config.EnableStateMachineFactory;
@@ -24,12 +28,12 @@ public class ChargebackStateMachineFactoryConfig
 
     private final StateMachineRuntimePersister<DisputeState, DisputeTransitionEvent, String> persister;
 
-
     private final GlobalStateMachineListener globalListener;
 
-    //todo: initiate this with required guards and actions
-    private final List<DisputeBootstrapGuard> bootstrapGuards = new ArrayList<>();
-    private final Map<DisputeState, DisputeStateMachineAction> bootstrapActions = new HashMap<>();
+    private final BootstrapLifecycleRegistry bootstrapRegistry;
+    private final ChargebackTransitionRegistry otherTransitionRegistry;
+    private final StateMachineWiringEngine wiringEngine;
+
 
     @Override
     public DisputeMode stateMachineMode() {
@@ -45,17 +49,31 @@ public class ChargebackStateMachineFactoryConfig
 
     @Override
     public void configure(StateMachineTransitionConfigurer<DisputeState, DisputeTransitionEvent> transitions) throws Exception {
-        for (DisputeBootstrapGuard guard : bootstrapGuards) {
+        Collection<BootstrapTransition> chbkBootstrapTransition = bootstrapRegistry.getTransitions(stateMachineMode());
+
+        for (BootstrapTransition transition : chbkBootstrapTransition) {
+            DisputeBootstrapGuard guard = transition.getGuard();
+            DisputeBootstrapAction action = transition.getAction();
             DisputeState target = guard.getTargetState();
-            transitions
+
+            var configurer = transitions
                     .withExternal()
                     .source(DisputeState.BOOTSTRAPING_DISPUTE_CONTEXT)
                     .target(target)
-                    .event(guard.getTrigger())
-                    .guard(guard)
-                    .action(findActionForTarget(target))
-                    .and();
+                    .event(guard.trigger())
+                    .guard(guard);
+
+            // Conditionally add the action
+            //var resolvedAction = actionRegistry.getAction(stateMachineMode(), guard.trigger());
+            if (action != null) {
+                configurer = configurer.action(action);
+            }
+
+            configurer.and();
         }
+
+        wiringEngine.wireTransitions(transitions, otherTransitionRegistry.getTransitions());
+
     }
 
     @Override
@@ -69,13 +87,4 @@ public class ChargebackStateMachineFactoryConfig
                 .withPersistence()
                 .runtimePersister(persister);
     }
-
-
-    //todo: use app specific exception
-    public DisputeStateMachineAction findActionForTarget(DisputeState target){
-        return Optional.ofNullable(bootstrapActions.get(target))
-                .orElseThrow(() -> new IllegalArgumentException("No bootstrap action found for target: " + target));
-
-    }
-
 }

@@ -3,16 +3,18 @@ package com.netstra.disputes.transitions.config;
 import com.netra.commons.enums.DisputeMode;
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
-import com.netstra.disputes.transitions.actions.DisputeStateMachineAction;
+import com.netstra.disputes.transitions.bootstrap.BootstrapTransition;
+import com.netstra.disputes.transitions.bootstrap.action.DisputeBootstrapAction;
+import com.netstra.disputes.transitions.bootstrap.BootstrapLifecycleRegistry;
 import com.netstra.disputes.transitions.guards.GFGuardAwaitAcqVerification;
 import com.netstra.disputes.transitions.guards.GFGuardAwaitIssVerification;
-import com.netstra.disputes.transitions.guards.bootstrap.BootstrapGuardRegistry;
-import com.netstra.disputes.transitions.guards.bootstrap.DisputeBootstrapGuard;
+import com.netstra.disputes.transitions.bootstrap.guard.DisputeBootstrapGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.statemachine.config.EnableStateMachineFactory;
 import org.springframework.statemachine.config.EnumStateMachineConfigurerAdapter;
 import org.springframework.statemachine.config.builders.StateMachineConfigurationConfigurer;
+import org.springframework.statemachine.config.builders.StateMachineStateConfigurer;
 import org.springframework.statemachine.config.builders.StateMachineTransitionConfigurer;
 import org.springframework.statemachine.persist.StateMachineRuntimePersister;
 
@@ -26,16 +28,14 @@ public class GoodFaithStateMachineFactoryConfig
 
     private final StateMachineRuntimePersister<DisputeState, DisputeTransitionEvent, String> persister;
 
-
     private final GlobalStateMachineListener globalListener;
 
-    private final BootstrapGuardRegistry registry;
+    private final BootstrapLifecycleRegistry bootstrapRegistry;
 
     // Inject individual phase-level guards
     private final GFGuardAwaitAcqVerification guardAwaitAcqVerification;
     private final GFGuardAwaitIssVerification guardAwaitIssVerification;
 
-    private final Map<DisputeState, DisputeStateMachineAction> bootstrapActions = new HashMap<>();
     @Override
     public DisputeMode stateMachineMode() {
         return DisputeMode.GOODFAITH;
@@ -43,26 +43,43 @@ public class GoodFaithStateMachineFactoryConfig
 
 
     @Override
+    public void configure(StateMachineStateConfigurer<DisputeState, DisputeTransitionEvent> states) throws Exception {
+        states.withStates()
+                .initial(DisputeState.BOOTSTRAPING_DISPUTE_CONTEXT)
+                .states(EnumSet.allOf(DisputeState.class));
+    }
+
+    @Override
     public void configure(StateMachineTransitionConfigurer<DisputeState, DisputeTransitionEvent> transitions) throws Exception {
-        List<DisputeBootstrapGuard> gfBoostrapGuards = registry.getGuardsFor(stateMachineMode());
 
-
-        for (DisputeBootstrapGuard guard : gfBoostrapGuards) {
+        Collection<BootstrapTransition> gfBootstrapTransition = bootstrapRegistry.getTransitions(stateMachineMode());
+        for (BootstrapTransition transition : gfBootstrapTransition) {
+            DisputeBootstrapGuard guard = transition.getGuard();
+            DisputeBootstrapAction action = transition.getAction();
             DisputeState target = guard.getTargetState();
-            transitions
+
+            var configurer = transitions
                     .withExternal()
                     .source(DisputeState.BOOTSTRAPING_DISPUTE_CONTEXT)
                     .target(target)
-                    .event(guard.getTrigger())
-                    .guard(guard)
-                    .action(findActionForTarget(target))
-                    .and();
+                    .event(guard.trigger())
+                    .guard(guard);
+
+            // Conditionally add the action
+            //var resolvedAction = actionRegistry.getAction(stateMachineMode(), guard.trigger());
+            if (action != null) {
+                configurer = configurer.action(action);
+            }
+
+            configurer.and();
         }
+
 
         /*
          * -------------------------------
          * 2️⃣ Acquirer phase transitions
          * -------------------------------
+         * todo: try change to config from yaml
          */
         transitions
                 .withExternal()
@@ -190,13 +207,5 @@ public class GoodFaithStateMachineFactoryConfig
                 .and()
                 .withPersistence()
                 .runtimePersister(persister);
-    }
-
-
-    //todo: use app specific exception
-    public DisputeStateMachineAction findActionForTarget(DisputeState target){
-        return Optional.ofNullable(bootstrapActions.get(target))
-                .orElseThrow(() -> new IllegalArgumentException("No bootstrap action found for target: " + target));
-
     }
 }

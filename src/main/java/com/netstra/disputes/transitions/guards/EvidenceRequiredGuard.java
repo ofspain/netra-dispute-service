@@ -1,9 +1,10 @@
 package com.netstra.disputes.transitions.guards;
 
+import com.netra.commons.enums.DisputeMode;
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
 import com.netstra.disputes.services.DisputeService;
-import com.netstra.disputes.transitions.guards.bootstrap.DisputeBootstrapGuard;
+import com.netstra.disputes.transitions.bootstrap.guard.DisputeBootstrapGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
 import org.springframework.statemachine.StateContext;
@@ -38,9 +39,13 @@ public class EvidenceRequiredGuard implements DisputeBootstrapGuard {
     }
 
     @Override
-    public DisputeTransitionEvent getTrigger() {
-        return DisputeTransitionEvent.BOOTSTRAP_CONTEXT_USER;
+    public DisputeMode mode() {
+        //reason this out......we can have evidence guards for multiple mode
+        return null;
     }
 
-
+    @Override
+    public DisputeTransitionEvent trigger() {
+        return DisputeTransitionEvent.BOOTSTRAP_CONTEXT_USER;
+    }
 }

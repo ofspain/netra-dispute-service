@@ -1,0 +1,18 @@
+{
+  "mode": "CHARGEBACK",
+  "transitions": [
+    {
+      "source": "AWAITING_EVIDENCE_VERIFICATION",
+      "target": "EVIDENCE_VERIFIED",
+      "event": "EVENT_EVIDENCE_ACCEPTED",
+      "guardBeanName": "qualifiedBeanName"
+    },
+    {
+      "source": "AWAITING_EVIDENCE_VERIFICATION",
+      "target": "EVIDENCE_REJECTED",
+      "event": "EVENT_EVIDENCE_REJECTED",
+      "actionBeanName": "qualifiedBeanName"
+    }
+  ]
+}
+

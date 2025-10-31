@@ -1,5 +1,6 @@
 package com.netstra.disputes.transitions.actions;
 
+import com.netra.commons.enums.DisputeMode;
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
 import org.springframework.messaging.Message;
@@ -12,8 +13,18 @@ import java.util.Map;
 public class EvidenceAction implements DisputeStateMachineAction {
 
     @Override
-    public DisputeState getTargetState() {
-        return DisputeState.AWAITING_EVIDENCE_VERIFICATION;
+    public DisputeTransitionEvent trigger() {
+        return null;
+    }
+
+    @Override
+    public DisputeMode mode() {
+        return null;
+    }
+
+    @Override
+    public void perform(StateContext<DisputeState, DisputeTransitionEvent> context) {
+
     }
 
     @Override
