@@ -7,7 +7,7 @@ import com.netstra.disputes.transitions.bootstrap.BootstrapLifecycleRegistry;
 import com.netstra.disputes.transitions.bootstrap.BootstrapTransition;
 import com.netstra.disputes.transitions.bootstrap.action.DisputeBootstrapAction;
 import com.netstra.disputes.transitions.bootstrap.guard.DisputeBootstrapGuard;
-import com.netstra.disputes.transitions.util.ChargebackTransitionRegistry;
+import com.netstra.disputes.transitions.util.OtherTransitionRegistry;
 import com.netstra.disputes.transitions.util.StateMachineWiringEngine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
@@ -31,7 +31,7 @@ public class ChargebackStateMachineFactoryConfig
     private final GlobalStateMachineListener globalListener;
 
     private final BootstrapLifecycleRegistry bootstrapRegistry;
-    private final ChargebackTransitionRegistry otherTransitionRegistry;
+    private final OtherTransitionRegistry otherTransitionRegistry;
     private final StateMachineWiringEngine wiringEngine;
 
 
@@ -43,7 +43,7 @@ public class ChargebackStateMachineFactoryConfig
     @Override
     public void configure(StateMachineStateConfigurer<DisputeState, DisputeTransitionEvent> states) throws Exception {
         states.withStates()
-                .initial(DisputeState.BOOTSTRAPING_DISPUTE_CONTEXT)
+                .initial(DisputeState.BOOTSTRAP_DISPUTE_CONTEXT)
                 .states(EnumSet.allOf(DisputeState.class));
     }
 
@@ -58,7 +58,7 @@ public class ChargebackStateMachineFactoryConfig
 
             var configurer = transitions
                     .withExternal()
-                    .source(DisputeState.BOOTSTRAPING_DISPUTE_CONTEXT)
+                    .source(DisputeState.BOOTSTRAP_DISPUTE_CONTEXT)
                     .target(target)
                     .event(guard.trigger())
                     .guard(guard);
@@ -72,7 +72,10 @@ public class ChargebackStateMachineFactoryConfig
             configurer.and();
         }
 
-        wiringEngine.wireTransitions(transitions, otherTransitionRegistry.getTransitions());
+        wiringEngine.wireTransitions(transitions,
+                otherTransitionRegistry.getOtherTransitionByDisputeMode(
+                        stateMachineMode()).getTransitions()
+        );
 
     }
 

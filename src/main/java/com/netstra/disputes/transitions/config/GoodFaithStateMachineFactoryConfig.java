@@ -6,9 +6,9 @@ import com.netra.commons.enums.DisputeTransitionEvent;
 import com.netstra.disputes.transitions.bootstrap.BootstrapTransition;
 import com.netstra.disputes.transitions.bootstrap.action.DisputeBootstrapAction;
 import com.netstra.disputes.transitions.bootstrap.BootstrapLifecycleRegistry;
-import com.netstra.disputes.transitions.guards.GFGuardAwaitAcqVerification;
-import com.netstra.disputes.transitions.guards.GFGuardAwaitIssVerification;
 import com.netstra.disputes.transitions.bootstrap.guard.DisputeBootstrapGuard;
+import com.netstra.disputes.transitions.util.OtherTransitionRegistry;
+import com.netstra.disputes.transitions.util.StateMachineWiringEngine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.statemachine.config.EnableStateMachineFactory;
@@ -32,9 +32,11 @@ public class GoodFaithStateMachineFactoryConfig
 
     private final BootstrapLifecycleRegistry bootstrapRegistry;
 
-    // Inject individual phase-level guards
-    private final GFGuardAwaitAcqVerification guardAwaitAcqVerification;
-    private final GFGuardAwaitIssVerification guardAwaitIssVerification;
+    private final StateMachineWiringEngine wiringEngine;
+
+    private final OtherTransitionRegistry otherTransitionRegistry;
+
+
 
     @Override
     public DisputeMode stateMachineMode() {
@@ -73,128 +75,10 @@ public class GoodFaithStateMachineFactoryConfig
 
             configurer.and();
         }
-
-
-        /*
-         * -------------------------------
-         * 2️⃣ Acquirer phase transitions
-         * -------------------------------
-         * todo: try change to config from yaml
-         */
-        transitions
-                .withExternal()
-                .source(DisputeState.AWAITING_ACQUIRER_VERIFICATION)
-                .target(DisputeState.ACQUIRER_VERIFIED)
-                .event(DisputeTransitionEvent.ACQUIRER_VERIFIES)
-                .guard(guardAwaitAcqVerification)
-                .action(null) //add appropraite action here
-
-                .and()
-
-                .withExternal()
-                .source(DisputeState.AWAITING_ACQUIRER_VERIFICATION)
-                .target(DisputeState.ACQUIRER_DECLINED)
-                .event(DisputeTransitionEvent.ACQUIRER_DECLINES)
-                .guard(guardAwaitAcqVerification)
-                .action(null) //add appropraite action here
-
-                .and()
-
-                .withExternal()
-                .source(DisputeState.AWAITING_ACQUIRER_VERIFICATION)
-                .target(DisputeState.EXPIRED)
-                .event(DisputeTransitionEvent.EXPIRES)
-                .guard(guardAwaitAcqVerification)
-                .action(null) //add appropraite action here
-
-                .and()
-
-                .withExternal()
-                .source(DisputeState.AWAITING_ACQUIRER_VERIFICATION)
-                .target(DisputeState.WITHDRAWN_CUSTOMER)
-                .event(DisputeTransitionEvent.CUSTOMER_WITHDRAWS)
-                .guard(guardAwaitAcqVerification)
-                .action(null)//add appropraite action here
-                .and()
-
-
-                .withExternal()
-                .source(DisputeState.AWAITING_ACQUIRER_VERIFICATION)
-                .target(DisputeState.WITHDRAWN_ISSUER)
-                .event(DisputeTransitionEvent.ISSUER_WITHDRAWS)
-                .guard(guardAwaitAcqVerification)
-                .action(null) //add appropraite action here
-
-                .and()
-
-                .withExternal()
-                .source(DisputeState.AWAITING_ACQUIRER_VERIFICATION)
-                .target(DisputeState.WITHDRAWN_SUB_INSTITUTION)
-                .event(DisputeTransitionEvent.SUB_INST_WITHDRAWS)
-                .guard(guardAwaitAcqVerification)
-                .action(null) //add appropraite action here
-                .and();
-
-
-
-
-        /*
-         * -------------------------------
-         * 3️⃣ Issuer phase transitions
-         * -------------------------------
-         */
-        transitions
-                .withExternal()
-                .source(DisputeState.AWAITING_ISSUER_VERIFICATION)
-                .target(DisputeState.ISSUER_VERIFIED)
-                .event(DisputeTransitionEvent.ISSUER_VERIFIES)
-                .guard(guardAwaitIssVerification)
-                .action(null)//add appropraite action here
-
-                .and()
-
-                .withExternal()
-                .source(DisputeState.AWAITING_ISSUER_VERIFICATION)
-                .target(DisputeState.ISSUER_DECLINED)
-                .event(DisputeTransitionEvent.ISSUER_DECLINES)
-                .guard(guardAwaitIssVerification)
-                .action(null) //add appropraite action here
-
-                .and()
-
-                .withExternal()
-                .source(DisputeState.AWAITING_ISSUER_VERIFICATION)
-                .target(DisputeState.EXPIRED)
-                .event(DisputeTransitionEvent.EXPIRES)
-                .guard(guardAwaitIssVerification)
-                .action(null) //add appropraite action here
-
-                .and()
-
-                .withExternal()
-                .source(DisputeState.AWAITING_ISSUER_VERIFICATION)
-                .target(DisputeState.WITHDRAWN_CUSTOMER)
-                .event(DisputeTransitionEvent.CUSTOMER_WITHDRAWS)
-                .guard(guardAwaitIssVerification)
-
-                .and()
-
-                .withExternal()
-                .source(DisputeState.AWAITING_ISSUER_VERIFICATION)
-                .target(DisputeState.WITHDRAWN_ACQUIRER)
-                .event(DisputeTransitionEvent.ACQUIRER_WITHDRAWS)
-                .guard(guardAwaitIssVerification)
-                .action(null) //add appropraite action here
-
-                .and()
-
-                .withExternal()
-                .source(DisputeState.AWAITING_ISSUER_VERIFICATION)
-                .target(DisputeState.WITHDRAWN_SUB_INSTITUTION)
-                .event(DisputeTransitionEvent.SUB_INST_WITHDRAWS)
-                .guard(guardAwaitIssVerification)
-                .action(null) //add appropraite action here
-                .and();
+        wiringEngine.wireTransitions(transitions,
+                otherTransitionRegistry.getOtherTransitionByDisputeMode(
+                        stateMachineMode()).getTransitions()
+        );
     }
 
     @Override

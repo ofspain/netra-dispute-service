@@ -3,25 +3,25 @@
 -- 1. Create the table
 CREATE TABLE dispute_journey_traces (
                                         id BIGSERIAL PRIMARY KEY,
-                                        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-                                        updated_at TIMESTAMP DEFAULT NOW(),
-                                        dispute_id BIGINT NOT NULL REFERENCES disputes(id) ON DELETE CASCADE,
+     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+     updated_at TIMESTAMP DEFAULT NOW(),
+     dispute_id BIGINT NOT NULL REFERENCES disputes(id) ON DELETE CASCADE,
 
-                                        from_state VARCHAR(50),
-                                        to_state VARCHAR(50),
-                                        transition_time TIMESTAMP NOT NULL,
-                                        initiated_by VARCHAR(50),
-                                        initiated_by_code VARCHAR(50),
-                                        initiated_by_id BIGINT,
-                                        reason TEXT,
-                                        application_channel VARCHAR(50),
+     from_state VARCHAR(50),
+     to_state VARCHAR(50),
+     transition_time TIMESTAMP NOT NULL,
+     initiated_by VARCHAR(50),
+     initiated_by_code VARCHAR(50),
+     initiated_by_id BIGINT,
+     reason TEXT,
+     application_channel VARCHAR(50),
 
-                                        current_hash TEXT,
-                                        previous_hash TEXT,
-                                        audit_trace TEXT,
-                                        digital_signature TEXT,
+     current_hash TEXT,
+     previous_hash TEXT,
+     audit_trace TEXT,
+     digital_signature TEXT,
 
-                                        UNIQUE (current_hash)
+     UNIQUE (current_hash)
 );
 
 -- 2. Create the immutability enforcement function

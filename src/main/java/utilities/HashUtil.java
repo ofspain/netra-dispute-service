@@ -121,10 +121,5 @@ public final class HashUtil {
         BigInteger b2 = new BigInteger(hash2, 16);
         return b1.xor(b2).bitCount();
     }
-
-    public static String computePerpetualHash(File imageFile){
-        return null;
-        //todo: implement
-    }
 }
 
