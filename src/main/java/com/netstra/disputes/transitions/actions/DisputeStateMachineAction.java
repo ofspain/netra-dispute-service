@@ -10,16 +10,5 @@ public interface DisputeStateMachineAction extends Action<DisputeState, DisputeT
 
     DisputeTransitionEvent trigger();
     DisputeMode mode();
-
-    default boolean supports(DisputeMode mode, DisputeTransitionEvent event) {
-        return this.mode() == mode && this.trigger() == event;
-    }
-
-    void perform(StateContext<DisputeState, DisputeTransitionEvent> context);
-
-    @Override
-    default void execute(StateContext<DisputeState, DisputeTransitionEvent> context) {
-        perform(context);
-    }
 }
 

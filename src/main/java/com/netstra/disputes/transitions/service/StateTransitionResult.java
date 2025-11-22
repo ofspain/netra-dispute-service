@@ -2,6 +2,8 @@ package com.netstra.disputes.transitions.service;
 
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
+import com.netra.commons.models.Dispute;
+import com.netra.commons.models.DisputeJourneyTrace;
 import lombok.Builder;
 import lombok.Data;
 
@@ -14,6 +16,6 @@ public class StateTransitionResult {
     private DisputeState previousState;
     private DisputeState newState;
     private DisputeTransitionEvent event;
-    private Object dispute;
+    private Dispute dispute;
 }
 

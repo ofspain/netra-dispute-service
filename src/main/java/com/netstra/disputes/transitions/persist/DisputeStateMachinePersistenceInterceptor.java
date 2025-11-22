@@ -20,9 +20,6 @@ import org.springframework.util.ObjectUtils;
 public class DisputeStateMachinePersistenceInterceptor
         extends StateMachineInterceptorAdapter<DisputeState, DisputeTransitionEvent> {
 
-    private final DisputeStateMachinePersistService persistService;
-
-
     @Override
     public Message<DisputeTransitionEvent> preEvent(Message<DisputeTransitionEvent> message,
                                                     StateMachine<DisputeState, DisputeTransitionEvent> stateMachine) {
@@ -37,24 +34,24 @@ public class DisputeStateMachinePersistenceInterceptor
                                StateMachine<DisputeState, DisputeTransitionEvent> rootStateMachine) {
 
         // You can add pre-state change persistence logic here if needed
-        if (message != null && stateMachine != null && stateMachine.getId() != null) {
-            String disputeId = stateMachine.getId();
-            try {
-                // Persist before state change if needed
-                StateMachineContext<DisputeState, DisputeTransitionEvent> context =
-                        new DefaultStateMachineContext<>(
-                                state != null ? state.getId() : stateMachine.getState().getId(),
-                                message.getPayload(),
-                                message.getHeaders(),
-                                stateMachine.getExtendedState(),
-                                null,
-                                disputeId
-                        );
-                persistService.write(context, disputeId);
-            } catch (Exception e) {
-                System.err.println("Failed to persist state machine in preStateChange: " + e.getMessage());
-            }
-        }
+//        if (message != null && stateMachine != null && stateMachine.getId() != null) {
+//            String disputeId = stateMachine.getId();
+//            try {
+//                // Persist before state change if needed
+//                StateMachineContext<DisputeState, DisputeTransitionEvent> context =
+//                        new DefaultStateMachineContext<>(
+//                                state != null ? state.getId() : stateMachine.getState().getId(),
+//                                message.getPayload(),
+//                                message.getHeaders(),
+//                                stateMachine.getExtendedState(),
+//                                null,
+//                                disputeId
+//                        );
+//                persistService.write(context, disputeId);
+//            } catch (Exception e) {
+//                System.err.println("Failed to persist state machine in preStateChange: " + e.getMessage());
+//            }
+//        }
     }
 
     @Override
@@ -64,28 +61,28 @@ public class DisputeStateMachinePersistenceInterceptor
                                 StateMachine<DisputeState, DisputeTransitionEvent> stateMachine,
                                 StateMachine<DisputeState, DisputeTransitionEvent> rootStateMachine) {
 
-        // Auto-persist after successful state change
-        if (stateMachine != null && stateMachine.getId() != null) {
-            String disputeId = stateMachine.getId();
-            try {
-                StateMachineContext<DisputeState, DisputeTransitionEvent> context =
-                        new DefaultStateMachineContext<>(
-                                stateMachine.getState().getId(),
-                                message != null ? message.getPayload() : null,
-                                message != null ? message.getHeaders() : null,
-                                stateMachine.getExtendedState(),
-                                null,
-                                disputeId
-                        );
-                persistService.write(context, disputeId);
-
-                System.out.println("Auto-persisted state machine for dispute: " + disputeId +
-                        ", state: " + stateMachine.getState().getId());
-            } catch (Exception e) {
-                System.err.println("Failed to auto-persist state machine for dispute " + disputeId +
-                        ": " + e.getMessage());
-            }
-        }
+//        // Auto-persist after successful state change
+//        if (stateMachine != null && stateMachine.getId() != null) {
+//            String disputeId = stateMachine.getId();
+//            try {
+//                StateMachineContext<DisputeState, DisputeTransitionEvent> context =
+//                        new DefaultStateMachineContext<>(
+//                                stateMachine.getState().getId(),
+//                                message != null ? message.getPayload() : null,
+//                                message != null ? message.getHeaders() : null,
+//                                stateMachine.getExtendedState(),
+//                                null,
+//                                disputeId
+//                        );
+//                persistService.write(context, disputeId);
+//
+//                System.out.println("Auto-persisted state machine for dispute: " + disputeId +
+//                        ", state: " + stateMachine.getState().getId());
+//            } catch (Exception e) {
+//                System.err.println("Failed to auto-persist state machine for dispute " + disputeId +
+//                        ": " + e.getMessage());
+//            }
+//        }
     }
 
     @Override
@@ -99,38 +96,30 @@ public class DisputeStateMachinePersistenceInterceptor
             StateContext<DisputeState, DisputeTransitionEvent> stateContext) {
 
         // Handle internal transitions
-        if (stateContext.getTransition() != null &&
-                stateContext.getTransition().getKind() == TransitionKind.INTERNAL &&
-                stateContext.getStateMachine() != null &&
-                stateContext.getStateMachine().getId() != null) {
-
-            String disputeId = stateContext.getStateMachine().getId();
-            try {
-                StateMachineContext<DisputeState, DisputeTransitionEvent> context =
-                        new DefaultStateMachineContext<>(
-                                stateContext.getStateMachine().getState().getId(),
-                                stateContext.getEvent(),
-                                stateContext.getMessageHeaders(),
-                                stateContext.getStateMachine().getExtendedState(),
-                                null,
-                                disputeId
-                        );
-                persistService.write(context, disputeId);
-            } catch (Exception e) {
-                System.err.println("Failed to persist state machine after internal transition: " + e.getMessage());
-            }
-        }
+//        if (stateContext.getTransition() != null &&
+//                stateContext.getTransition().getKind() == TransitionKind.INTERNAL &&
+//                stateContext.getStateMachine() != null &&
+//                stateContext.getStateMachine().getId() != null) {
+//
+//            String disputeId = stateContext.getStateMachine().getId();
+//            try {
+//                StateMachineContext<DisputeState, DisputeTransitionEvent> context =
+//                        new DefaultStateMachineContext<>(
+//                                stateContext.getStateMachine().getState().getId(),
+//                                stateContext.getEvent(),
+//                                stateContext.getMessageHeaders(),
+//                                stateContext.getStateMachine().getExtendedState(),
+//                                null,
+//                                disputeId
+//                        );
+//                persistService.write(context, disputeId);
+//            } catch (Exception e) {
+//                System.err.println("Failed to persist state machine after internal transition: " + e.getMessage());
+//            }
+//        }
 
         return stateContext;
     }
 
-    @Override
-    public Exception stateMachineError(StateMachine<DisputeState, DisputeTransitionEvent> stateMachine,
-                                       Exception exception) {
-        // Log state machine errors but don't interfere
-        System.err.println("State machine error for dispute " +
-                (stateMachine != null ? stateMachine.getId() : "unknown") +
-                ": " + exception.getMessage());
-        return exception;
-    }
+
 }

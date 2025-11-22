@@ -19,17 +19,6 @@ public class DisputeJourneyTraceController {
 
     private final DisputeJourneyTraceService service;
 
-
-    @PostMapping
-    public ResponseEntity<?> recordTransition(@RequestBody DisputeJourneyTrace trace) {
-        try {
-            DisputeJourneyTrace created = service.recordTransition(trace);
-            return ResponseEntity.ok(created);
-        } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
-    }
-
     @GetMapping
     public ResponseEntity<Page<DisputeJourneyTrace>> findTraces(
             @RequestParam Long disputeId,

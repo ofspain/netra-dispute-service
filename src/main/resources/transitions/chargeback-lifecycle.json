@@ -4,15 +4,23 @@
     {
       "source": "AWAITING_EVIDENCE_VERIFICATION",
       "target": "EVIDENCE_VERIFIED",
-      "event": "EVENT_EVIDENCE_ACCEPTED",
-      "guardBeanName": "qualifiedBeanName"
+      "event": "EVENT_EVIDENCE_PROCESSED",
+      "guardBeanName": "qualifiedBeanName",
+      "actionBeanName": "qualifiedBeanName"
     },
     {
       "source": "AWAITING_EVIDENCE_VERIFICATION",
       "target": "EVIDENCE_REJECTED",
-      "event": "EVENT_EVIDENCE_REJECTED",
-      "actionBeanName": "qualifiedBeanName"
+      "event": "EVENT_EVIDENCE_PROCESSED",
+      "actionBeanName": "qualifiedBeanName",
+      "guardBeanName": "qualifiedBeanName"
+    },
+    {
+      "source": "AWAITING_EVIDENCE_VERIFICATION",
+      "target": "AWAITING_MANUAL_EVIDENCE_REVIEW",
+      "event": "EVENT_EVIDENCE_PROCESSED",
+      "actionBeanName": "qualifiedBeanName",
+      "guardBeanName": "qualifiedBeanName"
     }
   ]
 }
-

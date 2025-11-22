@@ -3,6 +3,7 @@ package com.netstra.disputes.services;
 
 import com.netra.commons.models.DisputeJourneyTrace;
 import com.netstra.disputes.dao.DisputeJourneyTraceDao;
+import com.netstra.disputes.model.IdempotencyContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
@@ -19,7 +20,7 @@ public class DisputeJourneyTraceService {
 
 
     @Transactional
-    public DisputeJourneyTrace recordTransition(DisputeJourneyTrace trace) {
+    public DisputeJourneyTrace recordTransition(DisputeJourneyTrace trace, IdempotencyContext idempotencyContext) {
         try {
             return dao.insert(trace)
                     .orElseThrow(() -> new IllegalStateException("Insert did not return a record"));

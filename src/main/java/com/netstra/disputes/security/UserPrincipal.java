@@ -1,6 +1,6 @@
 package com.netstra.disputes.security;
 
-import com.interswitch.backbone.arbitertransactionstoremanager.shared.model.passport.User;
+import com.netra.commons.models.BaseUser;
 import lombok.Getter;
 import lombok.ToString;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -13,10 +13,10 @@ import java.util.Map;
 @Getter
 public class UserPrincipal extends Jwt implements DomainAwarePrincipal{
 
-    private final User user;
+    private final BaseUser user;
 
     public UserPrincipal(String tokenValue, Instant issuedAt, Instant expiresAt,
-                         Map<String, Object> headers, Map<String, Object> claims, User user) {
+                         Map<String, Object> headers, Map<String, Object> claims, BaseUser user) {
         super(tokenValue, issuedAt, expiresAt, headers, claims);
         Assert.notNull(user, "user cannot be null");
         this.user = user;
@@ -24,17 +24,23 @@ public class UserPrincipal extends Jwt implements DomainAwarePrincipal{
 
     @Override
     public String getUserName() {
-        return user.getUsername();
+        return user.getIdentity().getUsername();
     }
 
 //    @Override
     public String getDomainCode() {
-      return user.getDomainCode();
+      return user.getIdentity().getDomainCode();
     }
 
     @Override
-    public String getEffectiveDomainCode() {
-        return user.getDomainCode();
+    public Long getIDonHostDB() {
+        return user.getId();
     }
+
+    @Override
+    public Boolean getDisabled() {
+        return user.getDisabled();
+    }
+
 
 }

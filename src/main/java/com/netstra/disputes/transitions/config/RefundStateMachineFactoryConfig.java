@@ -5,17 +5,18 @@ import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
 import com.netstra.disputes.transitions.bootstrap.BootstrapLifecycleRegistry;
 import com.netstra.disputes.transitions.bootstrap.BootstrapTransition;
-import com.netstra.disputes.transitions.bootstrap.action.DisputeBootstrapAction;
-import com.netstra.disputes.transitions.bootstrap.guard.DisputeBootstrapGuard;
+import com.netstra.disputes.transitions.listener.GlobalStateMachineListener;
 import com.netstra.disputes.transitions.util.OtherTransitionRegistry;
 import com.netstra.disputes.transitions.util.StateMachineWiringEngine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.statemachine.action.Action;
 import org.springframework.statemachine.config.EnableStateMachineFactory;
 import org.springframework.statemachine.config.EnumStateMachineConfigurerAdapter;
 import org.springframework.statemachine.config.builders.StateMachineConfigurationConfigurer;
 import org.springframework.statemachine.config.builders.StateMachineStateConfigurer;
 import org.springframework.statemachine.config.builders.StateMachineTransitionConfigurer;
+import org.springframework.statemachine.guard.Guard;
 import org.springframework.statemachine.persist.StateMachineRuntimePersister;
 
 import java.util.Collection;
@@ -41,33 +42,36 @@ public class RefundStateMachineFactoryConfig
     @Override
     public void configure(StateMachineStateConfigurer<DisputeState, DisputeTransitionEvent> states) throws Exception {
         states.withStates()
-                .initial(DisputeState.BOOTSTRAPING_DISPUTE_CONTEXT)
+                .initial(DisputeState.BOOTSTRAP_DISPUTE_CONTEXT)
                 .states(EnumSet.allOf(DisputeState.class));
     }
 
     @Override
     public void configure(StateMachineTransitionConfigurer<DisputeState, DisputeTransitionEvent> transitions) throws Exception {
 
-        Collection<BootstrapTransition> rfBootstrapTransition = bootstrapRegistry.getTransitions(stateMachineMode());
-        for (BootstrapTransition transition : rfBootstrapTransition) {
-            DisputeBootstrapGuard guard = transition.getGuard();
-            DisputeBootstrapAction action = transition.getAction();
-            DisputeState target = guard.getTargetState();
+        BootstrapTransition rfBootstrapTransition = bootstrapRegistry.getTransitions(stateMachineMode());
 
-            var configurer = transitions
-                    .withExternal()
-                    .source(DisputeState.BOOTSTRAPING_DISPUTE_CONTEXT)
-                    .target(target)
-                    .event(guard.trigger())
-                    .guard(guard);
+        if(null != rfBootstrapTransition){
+            for(DisputeState targetState : rfBootstrapTransition.getTargetStates()){
+                var configurer = transitions
+                        .withExternal()
+                        .source(DisputeState.BOOTSTRAP_DISPUTE_CONTEXT)
+                        .target(targetState)
+                        .event(rfBootstrapTransition.getTriggerEvent());
 
-            // Conditionally add the action
-            //var resolvedAction = actionRegistry.getAction(stateMachineMode(), guard.trigger());
-            if (action != null) {
-                configurer = configurer.action(action);
+                Guard<DisputeState, DisputeTransitionEvent> guard = rfBootstrapTransition.getGuard();
+                Action<DisputeState, DisputeTransitionEvent> action = rfBootstrapTransition.getAction();
+
+                if (guard != null) {
+                    configurer = configurer.guard(guard);
+                }
+
+                if (action != null) {
+                    configurer = configurer.action(action);
+                }
+
+                configurer.and();
             }
-
-            configurer.and();
         }
         wiringEngine.wireTransitions(transitions,
                 otherTransitionRegistry.getOtherTransitionByDisputeMode(

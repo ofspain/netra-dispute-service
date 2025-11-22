@@ -1,15 +1,14 @@
 package com.netstra.disputes.transitions.persist;
 
+import com.netstra.disputes.model.DisputeStateMachineEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
-public class DisputeStateMachinePersistenceDao {
+public interface DisputeStateMachinePersistenceDao  extends JpaRepository<DisputeStateMachineEntity, Long> {
 
-    public DisputeStateMachineEntity save(DisputeStateMachineEntity entity){
-        return null;
-    }
 
-    public DisputeStateMachineEntity findByEntityId(String entityID){
-        return null;
-    }
+    Optional<DisputeStateMachineEntity> findByMachineId(String machineID);
 }
