@@ -73,10 +73,10 @@ public class RefundStateMachineFactoryConfig
                 configurer.and();
             }
         }
-        wiringEngine.wireTransitions(transitions,
-                otherTransitionRegistry.getOtherTransitionByDisputeMode(
-                        stateMachineMode()).getTransitions()
-        );
+//        wiringEngine.wireTransitions(transitions,
+//                otherTransitionRegistry.getOtherTransitionByDisputeMode(
+//                        stateMachineMode()).getTransitions()
+//        );
     }
 
     @Override

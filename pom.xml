@@ -93,11 +93,6 @@
 			<scope>runtime</scope>
 		</dependency>
 
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-test</artifactId>
-			<scope>test</scope>
-		</dependency>
 
 		<dependency>
 			<groupId>org.flywaydb</groupId>
@@ -132,6 +127,13 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-cache</artifactId>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/org.redisson/redisson-spring-boot-starter -->
+		<dependency>
+			<groupId>org.redisson</groupId>
+			<artifactId>redisson-spring-boot-starter</artifactId>
+			<version>4.0.0</version>
 		</dependency>
 		<!-- utilities -->
 
@@ -184,6 +186,7 @@
 			<artifactId>micrometer-tracing-bridge-otel</artifactId>
 		</dependency>
 
+
 		<dependency>
 			<groupId>io.opentelemetry.instrumentation</groupId>
 			<artifactId>opentelemetry-spring-boot-starter</artifactId>
@@ -233,6 +236,41 @@
 			<artifactId>spring-statemachine-core</artifactId>
 			<version>4.0.1</version>
 		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/com.pactlabs/aptos-protocol-core -->
+		<dependency>
+			<groupId>com.pactlabs</groupId>
+			<artifactId>aptos-protocol-core</artifactId>
+			<version>0.0.0-alpha002</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.github.aptos-labs</groupId>
+			<artifactId>japtos</artifactId>
+			<version>1.1.8</version>
+		</dependency>
+
+		<!-- TEST -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.statemachine</groupId>
+			<artifactId>spring-statemachine-test</artifactId>
+			<version>4.0.1</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<version>2.4.240</version>
+			<scope>test</scope>
+		</dependency>
+
+
 
 	</dependencies>
 	<dependencyManagement>

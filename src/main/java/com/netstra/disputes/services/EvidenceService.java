@@ -1,10 +1,9 @@
 package com.netstra.disputes.services;
 
 import com.netra.commons.models.Evidence;
-import com.netstra.disputes.model.IdempotencyContext;
+import com.netstra.disputes.idempotency.IdempotencyContext;
 import com.netstra.disputes.model.ProcessedEvidenceDTO;
 import lombok.RequiredArgsConstructor;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;

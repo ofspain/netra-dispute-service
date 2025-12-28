@@ -5,7 +5,6 @@ import com.netra.commons.enums.DomainType;
 import com.netra.commons.models.BaseUser;
 import com.netra.commons.models.CustomerUser;
 import com.netra.commons.models.Identity;
-import com.netra.commons.models.InstitutionUser;
 import com.netra.commons.util.BasicUtil;
 import com.netstra.disputes.services.UserService;
 import lombok.AllArgsConstructor;

@@ -1,14 +1,17 @@
 package com.netstra.disputes.services;
 
-import com.netra.commons.enums.DisputantType;
 import com.netra.commons.enums.DisputeMode;
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
 import com.netra.commons.models.*;
+import com.netra.commons.requests.CreateDisputeRequest;
+import com.netra.commons.requests.util.TransactionRailDTO;
 import com.netstra.disputes.dao.DisputeDao;
-import com.netstra.disputes.model.IdempotencyContext;
+import com.netstra.disputes.idempotency.GenericIdempotencyService;
+import com.netstra.disputes.idempotency.IdempotencyContext;
 import com.netstra.disputes.model.ProcessedEvidenceDTO;
 import com.netstra.disputes.model.ProcessedEvidences;
+import com.netstra.disputes.security.DomainAwarePrincipal;
 import com.netstra.disputes.transitions.config.StateMachineRegistry;
 import com.netstra.disputes.transitions.service.DisputeStateMachineService;
 import lombok.RequiredArgsConstructor;
@@ -36,42 +39,92 @@ public class DisputeService {
 
     private final DisputeJourneyTraceService disputeJourneyTraceService;
 
-    private final IdempotencyTokenService idempotencyService;
+    private final GenericIdempotencyService idempotencyService;
     private final StateMachineRegistry stateMachineRegistry;
     private final EvidenceService evidenceService;
     private final DisputeStateMachineService disputeStateMachineService;
 
+    //TODO: IDEM IN DISPUTE CREATION: stan, rrn
+
 
     @Transactional
-    public Dispute createDispute(Dispute dispute, DisputeJourneyTrace disputeJourneyTrace, IdempotencyContext idempotencyContext) {
-//        // Validate the transaction exists or save it if new
-//        Transaction txn = request.getTransaction();
+    public Dispute create(CreateDisputeRequest request) {
+
+
 //
 //        // Initialize Dispute
-//        Dispute dispute = new Dispute();
-//        dispute.setTransaction(txn);
-//        dispute.setCreatedVia(request.getApplicationChannel());
-//        dispute.setCreatedBy(request.getInitiator());
-//        dispute.setIssuerCode(txn.getIssuer().getCode());
-//        dispute.setAcquirerCode(txn.getAcquirer().getCode());
-//        dispute.setBeneficiaryCode(txn.getBeneficiary().getCode());
-//        dispute.setDisputeMode(request.getMode());
-//        dispute.setNote(request.getNote());
-//        dispute.setLocked(false);
-//        dispute.setFinalized(false);
-//        dispute.setResolved(false);
-//        dispute.setResolvedInCustomerFavor(false);
-//        dispute.setLogCode(generateLogCode());
-//        dispute.setCurrentState(state);
-//        dispute.setPreviousState(DisputeState.BOOTSTRAP_DISPUTE_CONTEXT);
-//        dispute.setCreatedAt(LocalDateTime.now());
-//        dispute.setDisputeMode(request.getDisputeMode());
+        Dispute dispute = new Dispute();
+        OtherTransactionInfo transactionInfo = new OtherTransactionInfo();
 
+        dispute.setTransactionDate(request.getTransactionDate());
+        dispute.setTransactionAmount(request.getTransactionAmount());
+        dispute.setTransactionAction(request.getTransactionAction());
+        TransactionRailDTO railDTO = request.getTransactionRail();
+        if(null != railDTO){
+            dispute.setTransactionPaymentRail(railDTO.getPaymentRail());
+            transactionInfo.setTransactionRail(railDTO);
+            dispute.setTransactionInstrument(railDTO.getInstrument());
+            dispute.setTransactionPaymentRail(railDTO.getPaymentRail());
+        }
+
+        if(null != request.getError()){
+            transactionInfo.setError(request.getError());
+        }
+
+        transactionInfo.setAuthorizationCode(request.getAuthCode());
+
+        transactionInfo.setRrn(request.getRrn());
+        transactionInfo.setStan(request.getStan());
+        dispute.setTransactionAction(request.getTransactionAction());
+        dispute.setCreatedVia(request.getApplicationChannel());
+        dispute.setCreatedBy(request.getInitiator());
+        dispute.setNote(request.getNote());
+
+        //assumed affected account is saved on the platform
+        AccountDetail affected = request.getAffectedAccount();
+        if(null != affected){
+            dispute.setIssuerCode(affected.getIssuingInstitution().getDomainCode());
+            transactionInfo.setCard(affected.getCard());
+        }
+
+        AccountDetail beneficiaryAccount = request.getBeneficiaryAccount();
+        if(null != beneficiaryAccount){
+            dispute.setBeneficiaryCode(beneficiaryAccount.getIssuingInstitution().getDomainCode());
+        }
+
+        dispute.setDisputeMode(request.getMode());
+        dispute.setNote(request.getNote());
+        dispute.setLocked(false);
+        dispute.setFinalized(false);
+        dispute.setResolved(false);
+        dispute.setResolvedInCustomerFavor(false);
+        dispute.setCurrentState(DisputeState.BOOTSTRAP_DISPUTE_CONTEXT);
+        dispute.setCreatedAt(LocalDateTime.now());
+        dispute.setDisputeMode(request.getDisputeMode());
+
+        //todo: save info too: default currency to naira for now
 
         // Persist dispute
         dispute =  disputeRepository.save(dispute);
 
-        disputeJourneyTraceService.recordTransition(disputeJourneyTrace,idempotencyContext);
+
+        BaseUser user = request.getInitiator();
+        Identity identity = user.getIdentity();
+
+        DisputeJourneyTrace disputeJourneyTrace = new DisputeJourneyTrace();
+        DisputeJourneyTrace journeyTrace = new DisputeJourneyTrace();
+        journeyTrace.setDisputeId(String.valueOf(dispute.getId()));
+        journeyTrace.setFromState(null);
+        journeyTrace.setToState(dispute.getCurrentState());
+        journeyTrace.setTransitionTime(LocalDateTime.now());
+        journeyTrace.setInitiatedBy(identity.getUsername());
+        journeyTrace.setInitiatedByDomainCode(identity.getDomainCode());
+        journeyTrace.setInitiatedByUUID(identity.getIdentityUuid());
+        journeyTrace.setInitiatedByDomainType(null != identity.getDomainType() ? identity.getDomainType().name() : null);
+        journeyTrace.setApplicationChannel(request.getApplicationChannel().name());
+
+
+        disputeJourneyTraceService.recordTransition(disputeJourneyTrace);
 
         return dispute;
 
@@ -91,14 +144,14 @@ public class DisputeService {
             //consumes messsage from kakfa serialized as ProcessedEvidences
         ProcessedEvidences processedEvidences = new ProcessedEvidences();//fake
         //compute idem context too
-        IdempotencyContext idempotencyContext = new IdempotencyContext();//fake
+        IdempotencyContext idempotencyContext = null; //new IdempotencyContext();//fake
 
         Long disputeId = processedEvidences.getDisputeId();
 
-        if (idempotencyContext.isReplay()) {
-            // do something and return fast
-
-        }
+//        if (idempotencyContext.isReplay()) {
+//            // do something and return fast
+//
+//        }
 
         List<ProcessedEvidenceDTO> processedEvidenceDTOs = processedEvidences.getProcessedEvidenceDTOs();
 
@@ -128,7 +181,7 @@ public class DisputeService {
                 () -> new IllegalStateException("Dispute not found: " + disputeId)
         );
 
-        DisputeMode mode = request.getMode();
+        DisputeMode mode = null; //request.getMode();
         StateMachine<DisputeState, DisputeTransitionEvent> sm =
                 stateMachineRegistry.getStateMachineFactory(dispute.getDisputeMode()).getStateMachine();
 
@@ -151,13 +204,14 @@ public class DisputeService {
         // ---------------------------------------------------------------------
         // 4) Fire bootstrap event
         // ---------------------------------------------------------------------
-        return sm.startReactively()
+        sm.startReactively()
                 .then(
                         sm.sendEventCollect(Mono.just(
                                 MessageBuilder.withPayload(DisputeTransitionEvent.EVENT_BOOTSTRAP_CONTEXT_USER)
                                         .setHeader("disputeId", dispute.getId()) // ← ADD THIS
-                                        .setHeader("idempotencyContext", idemCtx)
-                                        .setHeader("actor", idemCtx.getActor())
+                                        .setHeader("idempotencyContext", idempotencyContext)
+                                        .setHeader("actorID", idempotencyContext.getActorId())
+                                        .setHeader("actorType", idempotencyContext.getActorType())
                                         .setHeader("mode", mode)
                                         .build()
                         ))
@@ -171,8 +225,8 @@ public class DisputeService {
                         return;
                     }
 
-                    // Reload to get any updates from state machine actions
-                    sink.next(disputeRepository.findById(dispute.getId())
+                    // Reload to get any updates from state machine actions: todo: use app specific exception here too
+                    sink.next(disputeRepository.findByIdOrLogCode(dispute.getId(), null)
                             .orElseThrow(() -> new IllegalStateException("Dispute not found after state machine processing")));
                 })
                 .onErrorResume(error -> {
@@ -193,13 +247,13 @@ public class DisputeService {
 
     //todo: consider returning dispute with all its journey traces
     @Transactional
-    public Dispute updateDisputeWithTransition(Dispute dispute, Long id, IdempotencyContext idempotencyContext){
+    public Dispute updateDisputeWithTransition(Dispute dispute, Long id){
 
         DisputeJourneyTrace journeyTrace = new DisputeJourneyTrace();
 
 
         //todo: construct journeyTrace before this
-        journeyTrace = disputeJourneyTraceService.recordTransition(journeyTrace, idempotencyContext);
+        journeyTrace = disputeJourneyTraceService.recordTransition(journeyTrace);
 
         return updateDispute(dispute, id);
     }

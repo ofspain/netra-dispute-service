@@ -17,23 +17,23 @@ CREATE OR REPLACE FUNCTION fetch_disputes(
     p_created_via VARCHAR(50) DEFAULT NULL,
     p_date_from TIMESTAMP DEFAULT NULL,
     p_date_to TIMESTAMP DEFAULT NULL,
-    p_date_mark_legit_from TIMESTAMP DEFAULT NULL,
-    p_date_mark_legit_to TIMESTAMP DEFAULT NULL,
     p_sort_column TEXT DEFAULT 'created_at',
-    p_sort_direction VARCHAR(10) DEFAULT 'ASC'
+    p_sort_direction VARCHAR(10) DEFAULT 'DESC'
 )
 RETURNS JSONB
 LANGUAGE plpgsql
 AS $$
 DECLARE
 conditions TEXT[] := ARRAY[]::TEXT[];
-    v_order_by TEXT;
     v_where TEXT := '';
-    v_result JSONB;
-    v_total_count BIGINT;
+    v_order_by TEXT;
     v_sql TEXT;
+    v_total_count BIGINT;
+    v_result JSONB;
 BEGIN
-    -- Collect conditions
+    -- ------------------------------
+    -- Collect filter conditions
+    -- ------------------------------
     IF p_is_finalized IS NOT NULL THEN
         conditions := conditions || format('d.is_finalized = %L', p_is_finalized);
 END IF;
@@ -82,12 +82,6 @@ END IF;
     IF p_date_to IS NOT NULL THEN
         conditions := conditions || format('d.created_at <= %L', p_date_to);
 END IF;
-    IF p_date_mark_legit_from IS NOT NULL THEN
-        conditions := conditions || format('d.dispute_marked_legit_time >= %L', p_date_mark_legit_from);
-END IF;
-    IF p_date_mark_legit_to IS NOT NULL THEN
-        conditions := conditions || format('d.dispute_marked_legit_time <= %L', p_date_mark_legit_to);
-END IF;
 
     -- Build WHERE clause
     IF array_length(conditions, 1) > 0 THEN
@@ -97,30 +91,52 @@ END IF;
     -- Build ORDER BY safely
     IF p_sort_column ~ '^[a-zA-Z_][a-zA-Z0-9_]*$' THEN
         v_order_by := format('ORDER BY %I %s',
-            p_sort_column,
-            CASE WHEN upper(p_sort_direction) IN ('ASC', 'DESC')
-                 THEN upper(p_sort_direction)
-                 ELSE 'ASC' END);
+                             p_sort_column,
+                             CASE WHEN upper(p_sort_direction) IN ('ASC','DESC') THEN upper(p_sort_direction) ELSE 'DESC' END);
 ELSE
         RAISE WARNING 'Invalid sort column: %', p_sort_column;
-        v_order_by := 'ORDER BY created_at ASC';
+        v_order_by := 'ORDER BY created_at DESC';
 END IF;
 
-    -- Total count query
-EXECUTE format('SELECT COUNT(*) FROM disputes d %s', v_where) INTO v_total_count;
+    -- Total count
+EXECUTE format('SELECT COUNT(*) FROM disputes d %s', v_where)
+    INTO v_total_count;
 
--- Main query
+-- Main query: include light transaction summary
 v_sql := format($q$
         SELECT jsonb_build_object(
             'data', COALESCE(
                 (SELECT jsonb_agg(to_jsonb(d))
                  FROM (
-                    SELECT *
-                    FROM disputes d
-                    %s
-                    %s
-                    LIMIT %s
-                    OFFSET %s
+                     SELECT
+                         d.id,
+                         d.log_code,
+                         d.transaction_date,
+                         d.transaction_amount,
+                         d.current_state,
+                         d.previous_state,
+                         d.dispute_mode,
+                         d.locked,
+                         d.is_finalized,
+                         d.is_resolved,
+                         d.resolved_in_customer_favor,
+                         d.created_via,
+                         d.issuer_code,
+                         d.acquirer_code,
+                         d.merchant_code,
+                         d.beneficiary_code,
+                         d.switcher_code,
+                         d.plaintiff_institution_code,
+                         d.defendant_institution_code,
+                         d.on_us_transaction,
+                         oti.transaction_instrument AS oti_instrument,
+                         oti.payment_rail AS oti_rail
+                     FROM disputes d
+                     LEFT JOIN other_transaction_infos oti
+                        ON oti.id = d.transaction_info_id
+                     %s
+                     %s
+                     LIMIT %s OFFSET %s
                  ) d),
                 '[]'::jsonb
             ),

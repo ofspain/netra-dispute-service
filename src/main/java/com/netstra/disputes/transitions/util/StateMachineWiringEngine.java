@@ -4,6 +4,7 @@ import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.statemachine.action.Action;
 import org.springframework.statemachine.config.builders.StateMachineTransitionConfigurer;
 import org.springframework.statemachine.guard.Guard;
@@ -26,6 +27,7 @@ public class StateMachineWiringEngine {
                     .source(config.getSource())
                     .target(config.getTarget())
                     .event(config.getEvent());
+
 
             if (config.getGuardBeanName() != null) {
                 builder.guard(context.getBean(config.getGuardBeanName(), Guard.class));

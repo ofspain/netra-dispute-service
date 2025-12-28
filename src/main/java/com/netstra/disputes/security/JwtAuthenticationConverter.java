@@ -1,5 +1,8 @@
 package com.netstra.disputes.security;
+import com.netra.commons.enums.DomainType;
 import com.netra.commons.models.BaseUser;
+import com.netra.commons.models.Identity;
+import com.netra.commons.util.BasicUtil;
 import com.netstra.disputes.services.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -33,16 +36,12 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
     private static final String AUTHORIZATION_DOMAIN_HEADER = "X-Interswitch-Authorization-Domain";
 
     private final Converter<Jwt, Collection<GrantedAuthority>> jwtGrantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
-    private final ClientService clientService;
-    private final UserService userService;
-
     private final BaseUserExtractor baseUserExtractor;
 
-    public JwtAuthenticationConverter(ClientService clientService,
-                                      UserService userService,
-                                      BaseUserExtractor baseUserExtractor) {
-        this.clientService = clientService;
-        this.userService = userService;
+    private final String AUTH_SERVER_NAME = "authrex-service";
+
+    public JwtAuthenticationConverter(BaseUserExtractor baseUserExtractor) {
+
         this.baseUserExtractor = baseUserExtractor;
     }
 
@@ -52,12 +51,26 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
                 .ofNullable(jwtGrantedAuthoritiesConverter.convert(jwt))
                 .orElse(new ArrayList<>());
 
-        String domainCode = extractDomainHeader();
         String clientId = jwt.getClaimAsString("client_id");
         String userName = jwt.getClaimAsString("user_name");
-        List<String> scopes = jwt.getClaimAsStringList("scope");
+        String scope = jwt.getClaimAsString("scope");
+        String grantType = jwt.getClaimAsString("grant_type");
+        String domainCode = jwt.getClaimAsString("domain_code");
+        DomainType domainType = BasicUtil.safeEnum(DomainType.class,jwt.getClaimAsString("domain_code"));
 
-        boolean isClientToken = isClientToken(clientId, userName, scopes);
+
+        Set<String> scopes = scope == null
+                ? Set.of()
+                : Arrays.stream(scope.trim().split("\\s+"))
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+
+
+
+        //todo: taps other determinstic fields like is_delegated, is_service etc to determine which way,
+        // let use pass through for now....we pass client straight to client as if its user calling
+
+        boolean isClientToken = isClientToken(domainType, domainCode, clientId, grantType);
 
         if (isClientToken) {
             log.debug("Token classified as CLIENT token (client_id={}, domainHeader={})", clientId, domainCode);
@@ -74,14 +87,11 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
 
     private JwtAuthenticationToken handleClientAuthentication(Jwt jwt, String domainCode, Collection<GrantedAuthority> authorities) {
         String clientId = jwt.getClaimAsString("client_id");
-        String clientDomain = jwt.getClaimAsString("client_authorization_domain");
         String accessToken = jwt.getTokenValue();
+        List<String> permissions = jwt.getClaimAsStringList("client_permission");
 
-        // Fetch a full client representation using the access token and headers
-        User client = clientService.getClient(accessToken, domainCode, clientId, clientDomain);
+        BaseUser client = baseUserExtractor.extractUser(jwt, domainCode);
 
-        // Permissions for client (may be static or fetched from service)
-        List<Permission> permissions = clientService.getClientPermissions();
 
         // Map permissions -> authorities
         authorities.addAll(mapPermissionsToAuthorities(permissions, "CLIENT"));
@@ -138,30 +148,26 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
     }
 
 
-    // -------------------------
-    // Helper utilities
-    // -------------------------
 
-    private String extractDomainHeader() {
-        String domainCode = RequestUtils.getHeader(AUTHORIZATION_DOMAIN_HEADER);
-        if (StringUtils.isBlank(domainCode)) {
-            throw new AuthorizationParameterNotFoundException(AUTHORIZATION_DOMAIN_HEADER, "header");
-        }
-        return domainCode;
+
+    //(domainType, domainCode, clientId, grantType)
+    private boolean isClientToken(DomainType domainType, String domainCode, String clientId, String grantType) {
+
+        boolean clientType = DomainType.SYSTEM.equals(domainType);
+        boolean clientCode = Identity.systemIdentity().getDomainCode().equalsIgnoreCase(domainCode);
+        boolean validClientId = BasicUtil.isValidUuid(clientId);
+        boolean grantedType = "CLIENT_CREDENTIALS".equalsIgnoreCase(grantType);
+        //for now
+        return clientType && clientCode && validClientId && grantedType;
     }
 
-    private boolean isClientToken(String clientId, String userName, List<String> scopes) {
-        boolean scopeIndicatesClient = scopes != null && scopes.contains("clients");
-        return (clientId != null && userName == null) || scopeIndicatesClient;
-    }
-
-    private Set<GrantedAuthority> mapPermissionsToAuthorities(List<Permission> permissions, String fallbackPrefix) {
+    private Set<GrantedAuthority> mapPermissionsToAuthorities(List<String> permissions, String fallbackPrefix) {
         if (CollectionUtils.isEmpty(permissions)) {
             return Set.of(new SimpleGrantedAuthority("NO_" + fallbackPrefix));
         }
         return permissions.stream()
                 .filter(Objects::nonNull)
-                .map(p -> new SimpleGrantedAuthority(String.format("ROLE_%s", p.getName())))
+                .map(p -> new SimpleGrantedAuthority(String.format("ROLE_%s", p)))
                 .collect(Collectors.toSet());
     }
 
@@ -209,7 +215,7 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
         }
 
         // client authorization domain should match header domain
-        String tokenClientDomain = jwt.getClaimAsString("client_authorization_domain");
+        String tokenClientDomain = jwt.getClaimAsString("client_code");
         if (StringUtils.isNotBlank(tokenClientDomain) && !tokenClientDomain.equalsIgnoreCase(domainCode)) {
             log.warn("Client domain mismatch: header={}, token={}", domainCode, tokenClientDomain);
             throw new IllegalArgumentException("Client domain mismatch");
@@ -218,7 +224,7 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
         // client id must match the client record identity (defensive)
         String tokenClientId = jwt.getClaimAsString("client_id");
         if (client != null && client.getIdentity() != null) {
-            if (!client.getIdentity().getUsername().equalsIgnoreCase(tokenClientId)) {
+            if (!client.getIdentity().getIdentityUuid().equalsIgnoreCase(tokenClientId)) {
                 log.warn("client_id mismatch between JWT and client service: jwt={} vs client={}", tokenClientId, client.getIdentity().getUsername());
                 throw new IllegalArgumentException("client_id mismatch");
             }
@@ -226,7 +232,6 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
     }
 
     private boolean isExpectedIssuer(String issuer) {
-        // Replace with your configured issuer check; keep flexible if you have multiple issuers
-        return "your-auth-service".equalsIgnoreCase(issuer) || "passport".equalsIgnoreCase(issuer);
+        return AUTH_SERVER_NAME.equalsIgnoreCase(issuer);
     }
 }

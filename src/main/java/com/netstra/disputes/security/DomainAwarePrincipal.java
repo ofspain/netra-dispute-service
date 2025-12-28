@@ -1,5 +1,6 @@
 package com.netstra.disputes.security;
 
+import com.netra.commons.enums.DomainType;
 import com.netra.commons.models.Identity;
 
 public interface DomainAwarePrincipal {
@@ -7,7 +8,10 @@ public interface DomainAwarePrincipal {
     String getUserName();
     String getDomainCode();
 
-    Long getIDonHostDB();
+    String getIdentityUUID();
+
+    DomainType getDomainType();
+
 
     Boolean getDisabled();
 

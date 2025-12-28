@@ -1,5 +1,6 @@
 package com.netstra.disputes.security;
 
+import com.netra.commons.enums.DomainType;
 import com.netra.commons.models.BaseUser;
 import lombok.Getter;
 import lombok.ToString;
@@ -40,8 +41,14 @@ public class ClientPrincipal extends Jwt implements DomainAwarePrincipal {
     }
 
     @Override
-    public Long getIDonHostDB() {
-        return client.getId();
+    public String getIdentityUUID() {
+
+        return client.getIdentity().getIdentityUuid();
+    }
+
+    @Override
+    public DomainType getDomainType(){
+        return client.getIdentity().getDomainType();
     }
 
     @Override

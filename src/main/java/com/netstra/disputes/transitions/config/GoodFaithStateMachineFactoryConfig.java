@@ -81,10 +81,10 @@ public class GoodFaithStateMachineFactoryConfig
         }
 
 
-        wiringEngine.wireTransitions(transitions,
-                otherTransitionRegistry.getOtherTransitionByDisputeMode(
-                        stateMachineMode()).getTransitions()
-        );
+//        wiringEngine.wireTransitions(transitions,
+//                otherTransitionRegistry.getOtherTransitionByDisputeMode(
+//                        stateMachineMode()).getTransitions()
+//        );
     }
 
     @Override

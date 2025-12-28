@@ -1,25 +1,19 @@
 package com.netstra.disputes.transitions.service;
 
-import com.netra.commons.enums.DisputantType;
-import com.netra.commons.enums.DisputeMode;
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
 import com.netra.commons.models.Dispute;
-import com.netra.commons.requests.CreateDisputeRequest;
 import com.netra.commons.util.BasicUtil;
-import com.netstra.disputes.model.IdempotencyContext;
+import com.netstra.disputes.idempotency.IdempotencyContext;
 import com.netstra.disputes.security.DomainAwarePrincipal;
+import com.netstra.disputes.services.imaging.ImageValidationResult;
 import com.netstra.disputes.transitions.config.StateMachineRegistry;
-import com.netstra.disputes.transitions.persist.DisputeStateMachinePersistService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.statemachine.StateMachine;
-import org.springframework.statemachine.StateMachineContext;
 import org.springframework.statemachine.StateMachineEventResult;
-import org.springframework.statemachine.config.StateMachineFactory;
-import org.springframework.statemachine.support.DefaultStateMachineContext;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -41,9 +35,8 @@ public class DisputeStateMachineService {
                                            DisputeTransitionEvent event,
                                            Map<String, Object> headers,
                                            DisputeState intendedState,
-                                           DomainAwarePrincipal user,
-                                           IdempotencyContext idCtx) {
-        return sendEvent(dispute, event, headers, intendedState, user, idCtx, null);
+                                           DomainAwarePrincipal user) {
+        return sendEvent(dispute, event, headers, intendedState, user, null);
     }
 
     public StateTransitionResult sendEvent(Dispute dispute,
@@ -51,11 +44,10 @@ public class DisputeStateMachineService {
                                            Map<String, Object> headers,
                                            DisputeState intendedState,
                                            DomainAwarePrincipal user,
-                                           IdempotencyContext idCtx,
-                                           List<String> evidences) {
+                                           List<ImageValidationResult> evidences) {
 
         StateMachine<DisputeState, DisputeTransitionEvent> sm =
-                getStateMachine(dispute, user, idCtx, evidences, intendedState);
+                getStateMachine(dispute, user,  evidences, intendedState);
 
         DisputeState initial = sm.getState().getId();
 
@@ -68,36 +60,37 @@ public class DisputeStateMachineService {
         DisputeState finalState = sm.getState().getId();
 
         return buildResult(dispute, event, initial, finalState, accepted);
+        //stateMachine1
+        //	.sendEvent(Mono.just(MessageBuilder
+        //		.withPayload("E1").build()))
+        //	.blockLast();
     }
 
     // -------- Internal helpers --------
     private StateMachine<DisputeState, DisputeTransitionEvent> getStateMachine(
             Dispute dispute,
             DomainAwarePrincipal user,
-            IdempotencyContext idemCtx,
-            List<String> evidences,
+            List<ImageValidationResult> evidences,
             DisputeState intended) {
 
         StateMachine<DisputeState, DisputeTransitionEvent> sm =
                 machineRegistry.getStateMachineFactory(dispute.getDisputeMode())
                         .getStateMachine(dispute.getId().toString());
 
-        populateExtendedState(sm, dispute, user, idemCtx, evidences, intended);
+        populateExtendedState(sm, dispute, user,  evidences, intended);
         return sm;
     }
 
     private void populateExtendedState(StateMachine<DisputeState, DisputeTransitionEvent> sm,
                                        Dispute dispute,
                                        DomainAwarePrincipal user,
-                                       IdempotencyContext idemCtx,
-                                       List<String> evidences,
+                                       List<ImageValidationResult> evidences,
                                        DisputeState intendedState) {
 
         Map<Object, Object> vars = sm.getExtendedState().getVariables();
 
         vars.put("dispute", dispute);
         vars.put("user", user);
-        vars.put("idempotencyContext", idemCtx);
         vars.put("intendedState", intendedState);
 
         if (BasicUtil.validList(evidences)) {

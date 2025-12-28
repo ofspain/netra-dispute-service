@@ -5,19 +5,16 @@ import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
 import com.netra.commons.models.Dispute;
 import com.netra.commons.models.Evidence;
-import com.netstra.disputes.model.IdempotencyContext;
 import com.netstra.disputes.model.ProcessedEvidenceDTO;
-import com.netstra.disputes.model.ProcessedEvidences;
 import com.netstra.disputes.services.EvidenceService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.statemachine.StateContext;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
-@Qualifier("cbEvidenceProcessedAC")
+@Component("cbEvidenceProcessedAC") // Add explicit name here
+//@Qualifier("cbEvidenceProcessedAC")
 @RequiredArgsConstructor
 public class CBEvidenceProcessedAction implements DisputeStateMachineAction {
 
@@ -36,12 +33,11 @@ public class CBEvidenceProcessedAction implements DisputeStateMachineAction {
     @Override
     public void execute(StateContext<DisputeState, DisputeTransitionEvent> context) {
 
-        DisputeState state = context.getTarget().getId();
-        IdempotencyContext idempotencyContext = context.getExtendedState().get("idempotencyContext", IdempotencyContext.class);
+        DisputeState toState = context.getTarget().getId();
         Dispute dispute =  context.getExtendedState().get("dispute", Dispute.class); // ← ADD THIS
 
 
-        switch (state){
+        switch (toState){
             case EVIDENCE_VERIFIED -> {
                 List<ProcessedEvidenceDTO> verifiedEvidences = context.getExtendedState().get("verifiedEvidences", List.class);
                 for(ProcessedEvidenceDTO processedEvidenceDTO : verifiedEvidences){
@@ -60,7 +56,7 @@ public class CBEvidenceProcessedAction implements DisputeStateMachineAction {
             }
 
         }
-        dispute.setCurrentState(state);
+        dispute.setCurrentState(toState);
 
 
     }

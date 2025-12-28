@@ -2,7 +2,6 @@ package com.netstra.disputes.transitions.listener;
 
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
-import com.netstra.disputes.model.IdempotencyContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
 import org.springframework.statemachine.StateContext;

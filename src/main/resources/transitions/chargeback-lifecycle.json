@@ -2,25 +2,25 @@
   "mode": "CHARGEBACK",
   "transitions": [
     {
-      "source": "AWAITING_EVIDENCE_VERIFICATION",
+      "source": "AWAITING_MANUAL_EVIDENCE_REVIEW",
       "target": "EVIDENCE_VERIFIED",
       "event": "EVENT_EVIDENCE_PROCESSED",
-      "guardBeanName": "qualifiedBeanName",
-      "actionBeanName": "qualifiedBeanName"
+      "guardBeanName": "cbEvidenceProcessedGD",
+      "actionBeanName": "cbEvidenceProcessedAC"
     },
     {
       "source": "AWAITING_EVIDENCE_VERIFICATION",
       "target": "EVIDENCE_REJECTED",
       "event": "EVENT_EVIDENCE_PROCESSED",
-      "actionBeanName": "qualifiedBeanName",
-      "guardBeanName": "qualifiedBeanName"
+      "guardBeanName": "cbEvidenceProcessedGD",
+      "actionBeanName": "cbEvidenceProcessedAC"
     },
     {
       "source": "AWAITING_EVIDENCE_VERIFICATION",
       "target": "AWAITING_MANUAL_EVIDENCE_REVIEW",
       "event": "EVENT_EVIDENCE_PROCESSED",
-      "actionBeanName": "qualifiedBeanName",
-      "guardBeanName": "qualifiedBeanName"
+      "guardBeanName": "cbEvidenceProcessedGD",
+      "actionBeanName": "cbEvidenceProcessedAC"
     }
   ]
 }

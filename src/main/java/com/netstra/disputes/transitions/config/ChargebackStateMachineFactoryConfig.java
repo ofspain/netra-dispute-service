@@ -3,15 +3,20 @@ package com.netstra.disputes.transitions.config;
 import com.netra.commons.enums.DisputeMode;
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
+import com.netstra.disputes.transitions.actions.CBEvidenceProcessedAction;
 import com.netstra.disputes.transitions.actions.CBWithdrawnAction;
 import com.netstra.disputes.transitions.bootstrap.BootstrapLifecycleRegistry;
 import com.netstra.disputes.transitions.bootstrap.BootstrapTransition;
+import com.netstra.disputes.transitions.guards.CBEvidenceProcessedGuard;
 import com.netstra.disputes.transitions.guards.CBWithdrawnGuard;
 import com.netstra.disputes.transitions.listener.GlobalStateMachineListener;
 import com.netstra.disputes.transitions.util.OtherTransitionRegistry;
 import com.netstra.disputes.transitions.util.StateMachineWiringEngine;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.statemachine.action.Action;
 import org.springframework.statemachine.config.EnableStateMachineFactory;
 import org.springframework.statemachine.config.EnumStateMachineConfigurerAdapter;
@@ -34,12 +39,11 @@ public class ChargebackStateMachineFactoryConfig
     private final GlobalStateMachineListener globalListener;
 
     private final BootstrapLifecycleRegistry bootstrapRegistry;
+
     private final OtherTransitionRegistry otherTransitionRegistry;
     private final StateMachineWiringEngine wiringEngine;
     private final CBWithdrawnGuard withdrawnGuard;
     private final CBWithdrawnAction withdrawnAction;
-
-
     @Override
     public DisputeMode stateMachineMode() {
         return DisputeMode.CHARGEBACK;
@@ -58,16 +62,19 @@ public class ChargebackStateMachineFactoryConfig
                 // Active children
                 .and().withStates()
                 .parent(DisputeState.ACTIVE)
+                .initial(DisputeState.ACTIVE_ENTRY)
                 .states(DisputeState.getAllActiveChildren())
 
                 // Terminal children
                 .and().withStates()
                 .parent(DisputeState.TERMINAL)
+                .initial(DisputeState.TERMINAL_ENTRY)
                 .states(DisputeState.getAllTerminalChildren())
 
                 // Withdrawn children
                 .and().withStates()
                 .parent(DisputeState.WITHDRAWN)
+                .initial(DisputeState.WITHDRAWN_ENTRY)
                 .states(DisputeState.getAllWithdrawnChildren());
     }
 

@@ -28,12 +28,14 @@ import java.util.Optional;
 public class DisputeStateMachinePersistService
         implements StateMachinePersist<DisputeState, DisputeTransitionEvent, String> {
 
-    private DisputeStateMachinePersistenceDao persistenceDao;
+    private final DisputeStateMachinePersistenceDao persistenceDao;
 
     private final ObjectMapper objectMapper;
 
     @Override/* ensure dispute id is in the form disputeMode:disputeId**/
     public void write(StateMachineContext<DisputeState, DisputeTransitionEvent> context, String disputeId) {
+        log.info("writing context from persister {}", disputeId);
+
         try {
             DisputeStateMachineEntity entity = persistenceDao.findByMachineId(disputeId)
                     .orElse(new DisputeStateMachineEntity());
@@ -55,6 +57,7 @@ public class DisputeStateMachinePersistService
 
     @Override
     public StateMachineContext<DisputeState, DisputeTransitionEvent> read(String disputeId) {
+        log.info("reading context from persister {}", disputeId);
         try {
             Optional<DisputeStateMachineEntity> entityOpt = persistenceDao.findByMachineId(disputeId);
 
@@ -81,10 +84,10 @@ public class DisputeStateMachinePersistService
             ContextWrapper wrapper = new ContextWrapper(
                     context.getState(),
                     context.getEvent(),
-                    convertVariablesToSerializable(context.getVariables()),
+                    convertVariablesToSerializable(context.getExtendedState().getVariables()),
                     context.getEventHeaders(),
-                    context.getHistoryStates(),
-                    context.getChilds()
+                    context.getHistoryStates()
+                  //  context.getChilds()
             );
             return objectMapper.writeValueAsString(wrapper);
         } catch (Exception e) {
@@ -100,9 +103,10 @@ public class DisputeStateMachinePersistService
                     wrapper.getState(),
                     wrapper.getEvent(),
                     wrapper.getEventHeaders(),
-                    convertToExtendedState(wrapper.getVariables()),
-                    wrapper.getHistoryStates(),
-                    wrapper.getChilds()
+                    null,
+                 //   convertToExtendedState(wrapper.getVariables()),
+                    wrapper.getHistoryStates()
+                  //  wrapper.getChilds()
             );
         } catch (Exception e) {
             throw new RuntimeException("Failed to deserialize state machine context", e);
@@ -121,9 +125,9 @@ public class DisputeStateMachinePersistService
             if (isSerializable(value)) {
                 serializable.put(key, value);
             } else if (value instanceof Dispute dispute) {
-                serializable.put(key, Map.of("id", dispute.getId())); // Store only ID
+                serializable.put(key, Map.of("dispute_id", dispute.getId())); // Store only ID
             } else if (value instanceof DomainAwarePrincipal user) {
-                serializable.put(key, Map.of("id", user.getIDonHostDB())); // Store only ID
+                serializable.put(key, Map.of("user_uuid", user.getIdentityUUID())); // Store only ID
             }
             // Skip large/unserializable objects
         }

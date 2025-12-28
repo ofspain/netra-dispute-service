@@ -5,12 +5,9 @@ import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
 import com.netra.commons.models.BaseUser;
 import com.netra.commons.models.Dispute;
-import com.netra.commons.models.DisputeJourneyTrace;
 import com.netra.commons.models.Evidence;
 import com.netra.commons.requests.CreateDisputeRequest;
-import com.netstra.disputes.model.IdempotencyContext;
 import com.netstra.disputes.services.DisputeJourneyTraceService;
-import com.netstra.disputes.services.DisputeService;
 import com.netstra.disputes.services.EvidenceService;
 import com.netstra.disputes.transitions.bootstrap.annotation.DisputeModeBootStrapComponent;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +24,8 @@ import java.util.List;
 public class CHBBootstrapAction implements Action<DisputeState, DisputeTransitionEvent> {
 
     private final EvidenceService evidenceService;
-    private final DisputeService disputeService;
+    //todo: beware, this introduces a circular dependency
+  //  private final DisputeService disputeService;
     private final DisputeJourneyTraceService disputeJourneyTraceService;
 
     @Override
@@ -47,7 +45,6 @@ public class CHBBootstrapAction implements Action<DisputeState, DisputeTransitio
         Dispute dispute = context.getExtendedState().get("dispute", Dispute.class);
         CreateDisputeRequest request = context.getExtendedState().get("request", CreateDisputeRequest.class);
 
-        IdempotencyContext idempotencyContext = context.getExtendedState().get("idempotencyContext", IdempotencyContext.class);
         List<String> validateEvidences = context.getExtendedState().get("validEvidences", List.class);
 
 

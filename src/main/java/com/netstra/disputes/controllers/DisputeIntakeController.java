@@ -3,6 +3,7 @@ package com.netstra.disputes.controllers;
 import com.netra.commons.requests.CreateDisputeRequest;
 import com.netstra.disputes.security.DomainAwarePrincipal;
 import com.netstra.disputes.services.DisputeIntakeService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,11 +19,11 @@ public class DisputeIntakeController {
 
     @PostMapping("/create/single")
     public ResponseEntity<?> intakeDispute(
-            @Valid @RequestBody CreateDisputeRequest request,
+            @Valid @RequestBody CreateDisputeRequest disputeRequest,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @AuthenticationPrincipal DomainAwarePrincipal userPrincipal) {
 
-        var response = disputeIntakeService.initiateUserDispute(request, userPrincipal, idempotencyKey);
+        var response = disputeIntakeService.initiateUserDispute(disputeRequest, userPrincipal, idempotencyKey);
         return ResponseEntity.ok(response);
     }
 }

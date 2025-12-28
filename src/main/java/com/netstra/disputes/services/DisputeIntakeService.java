@@ -4,24 +4,28 @@ import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
 import com.netra.commons.models.Dispute;
 import com.netra.commons.requests.CreateDisputeRequest;
-import com.netstra.disputes.model.IdempotencyContext;
+import com.netstra.disputes.idempotency.GenericIdempotencyService;
+import com.netstra.disputes.idempotency.IdempotencyContext;
+import com.netstra.disputes.idempotency.IdempotencyRequest;
+import com.netstra.disputes.idempotency.IdempotencyResult;
 import com.netstra.disputes.security.DomainAwarePrincipal;
-import com.netstra.disputes.services.validation.image.ImageValidationOrchestrator;
+import com.netstra.disputes.services.imaging.ImageValidationOrchestrator;
+import com.netstra.disputes.services.imaging.ImageValidationResult;
 import com.netstra.disputes.transitions.service.DisputeStateMachineService;
 import com.netstra.disputes.transitions.service.StateTransitionResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class DisputeIntakeService {
 
     private final ImageValidationOrchestrator imageValidationOrchestrator;
-    private final IdempotencyTokenService idempotencyService;
+    private final GenericIdempotencyService idempotencyService;
     private final DisputeService disputeService; // ← ADD THIS
     private final DisputeStateMachineService disputeStateMachineService;
 
@@ -32,116 +36,74 @@ public class DisputeIntakeService {
         // ---------------------------------------------------------------------
         // 0) Construct idempotency context BEFORE doing any heavy work
         // ---------------------------------------------------------------------
-        IdempotencyContext idemCtx = IdempotencyContext.builder()
-                .key(idempotencyKey)
-                .actor(user.getDomainCode() + ":" + user.getIDonHostDB())
-                .operation(IdempotencyContext.IdemOperation.CREATE_DISPIUTE)
-                .fingerprint(IdempotencyContext.generateCanonicalFingerPrint(request))
-                .createdAt(LocalDateTime.now())
+        IdempotencyRequest idempotencyRequest = IdempotencyRequest.builder()
+                .sourceType(IdempotencyRequest.IdempotencyRequestSourceType.HTTP)
+                .operationName(IdempotencyRequest.IdempotencyOperation.CREATE_DISPUTE)
+                .actorType(IdempotencyContext.ActorType.USER)
+                .actor(user)
+                .idempotencyKey(Optional.of(idempotencyKey))
                 .build();
-
-        // ---------------------------------------------------------------------
-        // 1) Check idempotency token BEFORE doing expensive validation
-        // ---------------------------------------------------------------------
-
-        IdempotencyContext idempotencyContext = idempotencyService.validateAndRecord(idemCtx);
-
-//        boolean firstTime = idempotencyService.checkAndRecord(idemCtx, "DISPUTE_CREATE");
-
-        if (idempotencyContext.isReplay()) {
-            // Idempotent response (return the previously created dispute)
-            return loadExistingDisputeByIdempotencyKey(idempotencyKey);
-        }
 
         // ---------------------------------------------------------------------
         // 2) Domain validation (heavy operations allowed)
         // ---------------------------------------------------------------------
+
+
+        //todo CRITICAL: Create dispute FIRST and persist to db as state is BOOTSTRAP_DISPUTE_CONTEXT
+        //Dispute dispute = createInitialDispute(request, user, validEvidences, idemCtx);
+
+        IdempotencyResult<Dispute> resultIdem = idempotencyService.executeIdempotent(
+                idempotencyRequest,
+                request,
+                () -> createInitialDispute(request, user),
+                Dispute.class
+        );
+
+        return resultIdem.getResultOrThrow();
+
+    }
+
+    // 🎯 COMPLETED: Create initial dispute entity
+    private Dispute createInitialDispute(CreateDisputeRequest request, DomainAwarePrincipal user) {
+
         if (Boolean.TRUE.equals(user.getDisabled())) {
             throw new IllegalStateException("User is disabled");
         }
 
-        List<String> validEvidences = request.getEvidences().stream()
-                .filter(imageValidationOrchestrator::validateEvidence)
+        List<ImageValidationResult> validEvidences = request.getEvidences().stream()
+                .map(imageValidationOrchestrator::validateEvidence)
                 .toList();
 
-        if (validEvidences.isEmpty()) {
+        List<ImageValidationResult> acceptedEvidences = validEvidences.stream()
+                .filter(imageValidationResult -> imageValidationResult.isValidAverageHash()).toList();
+
+        if (acceptedEvidences.isEmpty()) {
             throw new IllegalStateException("No valid evidences provided");
         }
 
+        Dispute dispute = disputeService.create(request);
 
-        //todo CRITICAL: Create dispute FIRST and persist to db as state is BOOTSTRAP_DISPUTE_CONTEXT
-        Dispute dispute = createInitialDispute(request, user, validEvidences, idemCtx);
-
-//        // 2) Get state machine for CREATION flow
-//        StateMachine<DisputeState, DisputeTransitionEvent> sm =
-//                disputeStateMachineService.createAndBootstrapStateMachine(
-//                        user, idemCtx, validEvidences, request);
 
         // 3) Send bootstrap event
         StateTransitionResult result = disputeStateMachineService.sendEvent(
                 dispute,
                 DisputeTransitionEvent.EVENT_BOOTSTRAP_CONTEXT_USER,
                 Map.of(
-                        "actor", idemCtx.getActor(),
+                        "actorType", IdempotencyContext.ActorType.USER,
+                        "actor", user,
                         "mode", request.getMode(),
                         "initiatorType", request.getInitiator().getDisputantType()
                 ),
                 DisputeState.AWAITING_EVIDENCE_VERIFICATION,
                 user,
-                idempotencyContext,
                 validEvidences
         );
 
-        if (!result.isAccepted()) {
-            throw new IllegalStateException("Dispute creation rejected by state machine");
-        }
-
-        // 5) Update dispute with final state from state machine
-        dispute.setCurrentState(result.getNewState());
-        return disputeService.updateDisputeWithTransition(dispute, dispute.getId(), idempotencyContext);
-
-
+        //todo: weekly cleanup of failed, make sure at api level, failed state are reported as failed
+        dispute.setCurrentState(result.isAccepted() ? result.getNewState() : DisputeState.BOOTSTRAP_FAILED);
+        return disputeService.updateDisputeWithTransition(dispute, dispute.getId());
 
     }
 
-    // 🎯 COMPLETED: Create initial dispute entity
-    private Dispute createInitialDispute(CreateDisputeRequest request,
-                                         DomainAwarePrincipal user,
-                                         List<String> validEvidences,
-                                         IdempotencyContext idemCtx) {
-//        Dispute dispute = Dispute.builder()
-//                .transactionId(request.getTransactionId())
-//                .amount(request.getAmount())
-//                .currency(request.getCurrency())
-//                .reason(request.getReason())
-//                .mode(request.getMode())
-//                .status(DisputeState.INITIAL) // Initial state
-//                .createdBy(idemCtx.getActor())
-//                .evidences(validEvidences)
-//                .idempotencyKey(idemCtx.getKey()) // Store for replay lookups
-//                .createdAt(LocalDateTime.now())
-//                .build();
 
-        return null;
     }
-
-    // 🎯 COMPLETED: Load existing dispute for replay
-    private Dispute loadExistingDisputeByIdempotencyKey(String idempotencyKey) {
-        return disputeRepository.findByidempotencyKey(idempotencyKey)
-                .orElseThrow(() -> new IllegalStateException(
-                        "Replay detected but no existing dispute found for key: " + idempotencyKey));
-    }
-}
-
-
-
-
-// 4️⃣ Fire bootstrap event
-//        boolean eventAccepted = stateMachine.sendEvent(
-//                MessageBuilder.withPayload(DisputeTransitionEvent.EVENT_BOOTSTRAP_CONTEXT_USER)
-//                        .setHeader("disputeId", "temporary-id") // or generate one
-//                        .setHeader("idempotencyContext", idemCtx)
-//                        .setHeader("actor", actor)
-//                        .setHeader("mode", mode)
-//                        .build()
-//        );

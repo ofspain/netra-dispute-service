@@ -17,6 +17,6 @@ public class ContextWrapper {
     private DisputeTransitionEvent event;
     private Map<String, Object> variables;
     private Map<String, Object> eventHeaders;
-    private Map<String, Object> historyStates;
-    private Map<String, Object> childs;
+    private Map<DisputeState,DisputeState> historyStates;
+  //  private List <StateMachineContext<DisputeState, DisputeTransitionEvent> childs;
 }

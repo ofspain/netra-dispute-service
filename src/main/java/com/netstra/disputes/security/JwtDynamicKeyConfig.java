@@ -25,6 +25,9 @@ public class JwtDynamicKeyConfig {
     @Value("${authrex.public-key-url}")
     private String publicKeyUrl;
 
+    @Value("${authrex.base-url}")
+    private String authrexBaseUrl;
+
     @Value("${authrex.public-key-refresh-minutes:30}")
     private int refreshMinutes;
 
@@ -65,8 +68,9 @@ public class JwtDynamicKeyConfig {
     private RSAPublicKey fetchPublicKeyFromAuthrex() throws Exception {
         RestTemplate restTemplate = new RestTemplate();
         log.info("Fetching RSA public key from {}", publicKeyUrl);
+        String url = authrexBaseUrl + publicKeyUrl;
 
-        String pem = restTemplate.getForObject(publicKeyUrl, String.class);
+        String pem = restTemplate.getForObject(url, String.class);
 
         if (pem == null || pem.isBlank()) {
             throw new IllegalStateException("Empty public key received from Authrex");

@@ -9,8 +9,8 @@ import org.springframework.statemachine.StateContext;
 import org.springframework.statemachine.guard.Guard;
 import org.springframework.stereotype.Component;
 
-@Component
-@Qualifier("cbEvidenceProcessedGD")
+@Component("cbEvidenceProcessedGD")
+//@Qualifier("cbEvidenceProcessedGD")
 @RequiredArgsConstructor
 public class CBEvidenceProcessedGuard  implements Guard<DisputeState, DisputeTransitionEvent> {
     @Override

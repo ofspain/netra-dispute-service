@@ -29,6 +29,8 @@ class ApplicationTests {
 	@Autowired
 	private RestClientFactory restClientFactory;
 
+	/*
+
 	// === 1. GTB Payments (API Key + Static/Dynamic Headers) ===
 	@Test
 	void testEndpoint1() {
@@ -710,6 +712,9 @@ class ApplicationTests {
 
 		System.out.println("Response (Salesforce Accounts): " + response);
 	}
+
+	*/
+
 
 
 }

@@ -16,8 +16,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-import static com.netra.commons.enums.DisputeState.AWAITING_EVIDENCE_VERIFICATION;
-import static com.netra.commons.enums.DisputeState.AWAITING_RESPONDER_VERIFICATION;
+import static com.netra.commons.enums.DisputeState.*;
 
 @Component
 @RequiredArgsConstructor
@@ -38,7 +37,7 @@ public class CHBBootstrapComponent implements DisputeBootstrapComponent {
 
     @Override
     public List<DisputeState> targetStates() {
-        return List.of(AWAITING_EVIDENCE_VERIFICATION,AWAITING_RESPONDER_VERIFICATION );
+        return List.of(AWAITING_EVIDENCE_VERIFICATION,REQUEST_RESPONDER_VERIFICATION );
     }
 
     @Override

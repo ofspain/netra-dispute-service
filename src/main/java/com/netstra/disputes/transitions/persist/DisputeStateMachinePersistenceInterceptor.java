@@ -3,6 +3,7 @@ package com.netstra.disputes.transitions.persist;
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
 import org.springframework.statemachine.StateMachine;
 import org.springframework.statemachine.StateContext;
@@ -17,12 +18,14 @@ import org.springframework.util.ObjectUtils;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class DisputeStateMachinePersistenceInterceptor
         extends StateMachineInterceptorAdapter<DisputeState, DisputeTransitionEvent> {
 
     @Override
     public Message<DisputeTransitionEvent> preEvent(Message<DisputeTransitionEvent> message,
                                                     StateMachine<DisputeState, DisputeTransitionEvent> stateMachine) {
+        log.info("BEFORE EVENT {}, {}", message.getPayload(), stateMachine.getState());
         return message;
     }
 
@@ -32,6 +35,7 @@ public class DisputeStateMachinePersistenceInterceptor
                                Transition<DisputeState, DisputeTransitionEvent> transition,
                                StateMachine<DisputeState, DisputeTransitionEvent> stateMachine,
                                StateMachine<DisputeState, DisputeTransitionEvent> rootStateMachine) {
+        log.info("Just before state change {}->{}, {}", transition.getSource(), transition.getTarget(), transition.getTrigger());
 
         // You can add pre-state change persistence logic here if needed
 //        if (message != null && stateMachine != null && stateMachine.getId() != null) {
@@ -60,6 +64,8 @@ public class DisputeStateMachinePersistenceInterceptor
                                 Transition<DisputeState, DisputeTransitionEvent> transition,
                                 StateMachine<DisputeState, DisputeTransitionEvent> stateMachine,
                                 StateMachine<DisputeState, DisputeTransitionEvent> rootStateMachine) {
+        log.info("Just after state change {}->{}, {}", transition.getSource(), transition.getTarget(), transition.getTrigger());
+
 
 //        // Auto-persist after successful state change
 //        if (stateMachine != null && stateMachine.getId() != null) {
@@ -88,12 +94,15 @@ public class DisputeStateMachinePersistenceInterceptor
     @Override
     public StateContext<DisputeState, DisputeTransitionEvent> preTransition(
             StateContext<DisputeState, DisputeTransitionEvent> stateContext) {
+        log.info("Just before transition");
+
         return stateContext;
     }
 
     @Override
     public StateContext<DisputeState, DisputeTransitionEvent> postTransition(
             StateContext<DisputeState, DisputeTransitionEvent> stateContext) {
+        log.info("Just after transition");
 
         // Handle internal transitions
 //        if (stateContext.getTransition() != null &&

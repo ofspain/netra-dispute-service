@@ -4,16 +4,11 @@ import com.netra.commons.enums.DisputeMode;
 import com.netra.commons.enums.DisputeState;
 import com.netra.commons.enums.DisputeTransitionEvent;
 import com.netra.commons.models.Dispute;
-import com.netra.commons.models.Evidence;
-import com.netstra.disputes.model.IdempotencyContext;
-import com.netstra.disputes.model.ProcessedEvidenceDTO;
 import com.netstra.disputes.services.EvidenceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.statemachine.StateContext;
 import org.springframework.stereotype.Component;
-
-import java.util.List;
 
 @Component
 @Qualifier("cbPlaintiffProcessedAC")
@@ -35,7 +30,6 @@ public class CBPlaintiffProcessed implements DisputeStateMachineAction{
     public void execute(StateContext<DisputeState, DisputeTransitionEvent> context) {
 
         DisputeState state = context.getTarget().getId();
-        IdempotencyContext idempotencyContext = context.getExtendedState().get("idempotencyContext", IdempotencyContext.class);
         Dispute dispute =  context.getExtendedState().get("dispute", Dispute.class); // ← ADD THIS
 
 

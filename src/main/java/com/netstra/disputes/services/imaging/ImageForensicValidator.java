@@ -1,4 +1,4 @@
-package com.netstra.disputes.services.validation.image;
+package com.netstra.disputes.services.imaging;
 
 import lombok.Data;
 import utilities.ForensicMetadata;
